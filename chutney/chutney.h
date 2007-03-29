@@ -93,4 +93,10 @@ extern int chutney_dump_init(chutney_dump_state *state,
                       void *write_context);
 extern int chutney_save_stop(chutney_dump_state *self);
 extern int chutney_save_null(chutney_dump_state *self);
+extern int chutney_save_bool(chutney_dump_state *self, int value);
 extern int chutney_save_int(chutney_dump_state *self, long value);
+extern int chutney_save_float(chutney_dump_state *self, double value);
+extern int chutney_save_string(chutney_dump_state *self, 
+                                const char *value, int size);
+extern int chutney_save_utf8(chutney_dump_state *self, 
+                                const char *value, int size);

@@ -1,12 +1,13 @@
 #include <Python.h>
 #include <cStringIO.h>
+#include <limits.h>
 #include "chutney.h"
 
 #if (PY_VERSION_HEX < 0x02050000)
 typedef int Py_ssize_t;
 #endif
 
-static PyObject *ChutneyError;
+static PyObject *ChutneyError, *UnpickleableError;
 
 static PyObject *
 chutney_loads(PyObject *self, PyObject *args)
@@ -48,13 +49,59 @@ save(chutney_dump_state *self, PyObject *obj)
     }
     type = obj->ob_type;
     switch (type->tp_name[0]) {
+    case 'b':
+        if (obj == Py_False || obj == Py_True) {
+            res = chutney_save_bool(self, obj == Py_True);
+            goto finally;
+        }
+        break;
+
     case 'i':
         if (type == &PyInt_Type) {
-            res = chutney_save_int(self, PyInt_AS_LONG((PyIntObject *)obj));
+            long value = PyInt_AS_LONG((PyIntObject *)obj);
+            res = chutney_save_int(self, value);
+            goto finally;
+        }
+        break;
+
+    case 'f':
+        if (type == &PyFloat_Type) {
+            double value = PyFloat_AS_DOUBLE((PyFloatObject *)obj);
+            res = chutney_save_float(self, value);
+            goto finally;
+        }
+        break;
+
+    case 's':
+        if (type == &PyString_Type) {
+            const char *value;
+            int size = PyString_Size(obj);
+            if (size >= 0 && size <= INT_MAX) {
+                value = PyString_AS_STRING((PyStringObject *)obj);
+                res = chutney_save_string(self, value, size);
+            }
+            goto finally;
+        }
+        break;
+
+    case 'u':
+        if (type == &PyUnicode_Type) {
+            PyObject *value = NULL;
+            int size;
+
+            if (!(value = PyUnicode_AsUTF8String(obj)))
+                goto uerror;
+            if ((size = PyString_Size(value)) < 0 || size > INT_MAX)
+                goto uerror;
+            res = chutney_save_utf8(self, PyString_AS_STRING(value), size);
+uerror:
+            Py_XDECREF(value);
             goto finally;
         }
         break;
     }
+    PyErr_SetObject(UnpickleableError, obj);
+
 finally:
     self->depth--;
     return res;
@@ -121,6 +168,10 @@ initchutney(void)
     ChutneyError = PyErr_NewException("chutney.ChutneyError", NULL, NULL);
     if (!ChutneyError)
         return;
+    UnpickleableError = PyErr_NewException("chutney.UnpickleableError", 
+                                             ChutneyError, NULL);
+    if (!UnpickleableError)
+        return;
 
     m = Py_InitModule4("chutney", chutney_methods,
                        chutney_module_documentation,
@@ -130,4 +181,5 @@ initchutney(void)
 
     Py_INCREF(ChutneyError);
     PyModule_AddObject(m, "ChutneyError", ChutneyError);
+    PyModule_AddObject(m, "UnpickleableError", UnpickleableError);
 }
