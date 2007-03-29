@@ -60,6 +60,21 @@ class DumpTests(unittest.TestCase):
         self.assertEqual(chutney.dumps(u''), 'X\x00\x00\x00\x00.')
         self.assertEqual(chutney.dumps(u'abc'), 'X\x03\x00\x00\x00abc.')
 
+    def test_tuple(self):
+        self.assertEqual(chutney.dumps(()), '(t.')
+        self.assertEqual(chutney.dumps((None,1,1.0)), '(NI1\nF1\nt.')
+        self.assertEqual(chutney.dumps(((),())), '((t(tt.')
+
+    def test_list(self):
+        # Lists are sent as tuples
+        self.assertEqual(chutney.dumps([]), '(t.')
+        self.assertEqual(chutney.dumps([None,1,1.0]), '(NI1\nF1\nt.')
+        self.assertEqual(chutney.dumps([(),[]]), '((t(tt.')
+
+    def test_dict(self):
+        self.assertEqual(chutney.dumps({}), '}.')
+        self.assertEqual(chutney.dumps({None: None}), '}(NNu.')
+
 
 class DumpSuite(unittest.TestSuite):
     tests = [
@@ -70,6 +85,9 @@ class DumpSuite(unittest.TestSuite):
         'test_float',
         'test_string',
         'test_unicode',
+        'test_tuple',
+        'test_list',
+        'test_dict',
     ]
     def __init__(self):
         unittest.TestSuite(self, map(DumpTests, self.tests))

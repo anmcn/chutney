@@ -90,15 +90,97 @@ save(chutney_dump_state *self, PyObject *obj)
             int size;
 
             if (!(value = PyUnicode_AsUTF8String(obj)))
-                goto uerror;
+                goto unicode_finally;
             if ((size = PyString_Size(value)) < 0 || size > INT_MAX)
-                goto uerror;
+                goto unicode_finally;
             res = chutney_save_utf8(self, PyString_AS_STRING(value), size);
-uerror:
+        unicode_finally:
             Py_XDECREF(value);
             goto finally;
         }
         break;
+
+    case 't':
+        if (type == &PyTuple_Type) {
+            int i, len = PyTuple_Size(obj);
+            if (len < 0)
+                goto finally;
+            if (chutney_save_mark(self) < 0)
+                goto finally;
+            for (i = 0; i < len; i++) {
+                PyObject *element = PyTuple_GET_ITEM(obj, i);
+                if (!element)
+                    goto finally;
+                if (save(self, element) < 0)
+                    goto finally;
+                
+            }
+            res = chutney_save_tuple(self);
+            goto finally;
+        }
+        break;
+
+    case 'l':
+        if (type == &PyList_Type) {
+            int i, len = PyList_Size(obj);
+            if (len < 0)
+                goto finally;
+            if (chutney_save_mark(self) < 0)
+                goto finally;
+            for (i = 0; i < len; i++) {
+                PyObject *element = PyList_GET_ITEM(obj, i);
+                if (!element)
+                    goto finally;
+                if (save(self, element) < 0)
+                    goto finally;
+                
+            }
+            res = chutney_save_tuple(self);
+            goto finally;
+        }
+        break;
+
+    case 'd':
+        if (type == &PyDict_Type) {
+            PyObject *iter = NULL;
+            int n, fail = 0;
+
+            if (chutney_save_empty_dict(self) < 0)
+                goto finally;
+            iter = PyObject_CallMethod(obj, "iteritems", "()");
+            if (iter == NULL)
+		goto finally;
+            do {
+                PyObject *kv;
+                for (n = 0; n < BATCHSIZE; ++n) {
+                    if (!(kv = PyIter_Next(iter))) {
+                        if (PyErr_Occurred())
+                            goto dict_finally;
+                        break;
+                    }
+                    if (n == 0)
+                        if (chutney_save_mark(self) < 0) 
+                            fail = 1;
+                    if (!fail && save(self, PyTuple_GET_ITEM(kv, 0)) < 0)
+                        fail = 1;
+                    if (!fail && save(self, PyTuple_GET_ITEM(kv, 1)) < 0)
+                        fail = 1;
+                    Py_DECREF(kv);
+                    if (fail)
+                        goto dict_finally;
+                }
+                if (n > 0)
+                    if (chutney_save_setitems(self) < 0)
+                        goto dict_finally;
+            } while (n == BATCHSIZE);
+            res = 0;
+
+        dict_finally:
+            Py_XDECREF(iter);
+            goto finally;
+        }
+        break;
+
     }
     PyErr_SetObject(UnpickleableError, obj);
 

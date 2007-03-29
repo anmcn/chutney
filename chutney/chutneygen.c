@@ -21,6 +21,14 @@ chutney_save_stop(chutney_dump_state *self)
 }
 
 int
+chutney_save_mark(chutney_dump_state *self)
+{
+    static char mark = MARK;
+
+    return self->write(self->write_context, &mark, 1);
+}
+
+int
 chutney_save_null(chutney_dump_state *self)
 {
     static char none = NONE;
@@ -121,3 +129,28 @@ chutney_save_utf8(chutney_dump_state *self, const char *value, int size)
         return -1;
     return self->write(self->write_context, value, size);
 }
+
+int
+chutney_save_tuple(chutney_dump_state *self)
+{
+    static char tuple = TUPLE;
+
+    return self->write(self->write_context, &tuple, 1);
+}
+
+int
+chutney_save_empty_dict(chutney_dump_state *self)
+{
+    static char empty_dict = EMPTY_DICT;
+
+    return self->write(self->write_context, &empty_dict, 1);
+}
+
+int
+chutney_save_setitems(chutney_dump_state *self)
+{
+    static char setitems = SETITEMS;
+
+    return self->write(self->write_context, &setitems, 1);
+}
+

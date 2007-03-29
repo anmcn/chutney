@@ -1,0 +1,32 @@
+CHUTNEY
+=======
+
+A simple portable subset of the python pickle protocol.
+
+Chutney support serialising:
+    
+    None        (null)
+    int
+    float       (double)
+    str         (8 bit clean strings)
+    utf-8       (UTF-8 encoded strings)
+    tuple
+    dict
+
+Unlike Python's pickle, no memoising is performed (at this time). 
+Consequently, recursive structures are not detected, and multiple
+references to the same structure will result in the structure being
+saved in it's entirity multiple times.
+
+A expedient mixture of pickle protocols 0, 1 and 2 are used. The choice
+is determined by:
+    
+    1. portable encoding (so encodings that rely on python repr() are out)
+    2. simple
+    3. compact
+
+This means we choose protocol 0 for floats, as protocol 1 relies on
+Python machinery for platform independent encoding, and protocol 1 for
+strings and unicode, as protocol 0 uses python repr().
+
+Note also that we send python lists as tuples to keep things simple.

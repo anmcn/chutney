@@ -70,6 +70,8 @@
 #define FALSE       "I00\n"
 
 
+#define BATCHSIZE 1000
+
 typedef struct {
     void (*make_null)(void);
 
@@ -92,6 +94,7 @@ extern int chutney_dump_init(chutney_dump_state *state,
                       int (*write)(void *context, const char *s, long n),
                       void *write_context);
 extern int chutney_save_stop(chutney_dump_state *self);
+extern int chutney_save_mark(chutney_dump_state *self);
 extern int chutney_save_null(chutney_dump_state *self);
 extern int chutney_save_bool(chutney_dump_state *self, int value);
 extern int chutney_save_int(chutney_dump_state *self, long value);
@@ -100,3 +103,6 @@ extern int chutney_save_string(chutney_dump_state *self,
                                 const char *value, int size);
 extern int chutney_save_utf8(chutney_dump_state *self, 
                                 const char *value, int size);
+extern int chutney_save_tuple(chutney_dump_state *self);
+extern int chutney_save_empty_dict(chutney_dump_state *self);
+extern int chutney_save_setitems(chutney_dump_state *self);
