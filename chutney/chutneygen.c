@@ -135,6 +135,8 @@ chutney_save_tuple(chutney_dump_state *self)
 {
     static char tuple = TUPLE;
 
+    /* This creates a tuple from all items on the stack back to the most recent
+     * MARK */
     return self->write(self->write_context, &tuple, 1);
 }
 
@@ -151,6 +153,8 @@ chutney_save_setitems(chutney_dump_state *self)
 {
     static char setitems = SETITEMS;
 
+    /* This adds all pairs of items on the stack up to the the most recent MARK
+     * to the dictionary preceeding the MARK */
     return self->write(self->write_context, &setitems, 1);
 }
 

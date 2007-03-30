@@ -17,12 +17,12 @@ class BasicSuite(unittest.TestSuite):
         'test_module_const',
     ]
     def __init__(self):
-        unittest.TestSuite(self, map(BasicTests, self.tests))
+        unittest.TestSuite.__init__(self, map(BasicTests, self.tests))
 
 
 class DumpTests(unittest.TestCase):
-    def test_none(self):
-        self.assertRaises(chutney.UnpickleableError, chutney.dumps(min))
+    def test_unpickleable(self):
+        self.assertRaises(chutney.UnpickleableError, chutney.dumps, min)
 
     def test_none(self):
         self.assertEqual(chutney.dumps(None), 'N.')
@@ -90,12 +90,12 @@ class DumpSuite(unittest.TestSuite):
         'test_dict',
     ]
     def __init__(self):
-        unittest.TestSuite(self, map(DumpTests, self.tests))
+        unittest.TestSuite.__init__(self, map(DumpTests, self.tests))
 
 
 class ChutneySuite(unittest.TestSuite):
     def __init__(self):
-        unittest.TestSuite(self)
+        unittest.TestSuite.__init__(self)
         self.addTest(BasicSuite())
         self.addTest(DumpSuite())
 
@@ -103,4 +103,15 @@ class ChutneySuite(unittest.TestSuite):
 suite = ChutneySuite
 
 if __name__ == '__main__':
-    unittest.main()
+    if hasattr(sys, 'gettotalrefcount'):
+        import gc
+        runner = unittest.TextTestRunner()
+        suite = ChutneySuite()
+        counts = [None] * 5
+        for i in xrange(len(counts)):
+            runner.run(suite)
+            gc.collect()
+            counts[i] = sys.gettotalrefcount()
+        print counts
+    else:
+        unittest.main()
