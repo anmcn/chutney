@@ -8,6 +8,7 @@ class BasicTests(unittest.TestCase):
     def test_module_const(self):
         self.failUnless(issubclass(chutney.ChutneyError, Exception))
         self.failUnless(issubclass(chutney.UnpickleableError, Exception))
+        self.failUnless(issubclass(chutney.UnpicklingError, Exception))
         self.failUnless(callable(chutney.dumps))
         self.failUnless(callable(chutney.loads))
 
@@ -97,12 +98,31 @@ class LoadTests(unittest.TestCase):
     def error_test(self):
         self.assertRaises(TypeError, chutney.loads, None)
         self.assertRaises(EOFError, chutney.loads, '')
-        self.assertRaises(UnpicklingError, chutney.loads, '.')
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, '.')
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, '\xff.')
+
+    def test_none(self):
+        self.assertEqual(chutney.loads('N.'), None)
+
+    def test_bool(self):
+        self.assertEqual(chutney.loads('\x88.'), True)
+        self.assertEqual(chutney.loads('\x89.'), False)
+
+    def test_int(self):
+        self.assertEqual(chutney.loads('I0\n.'), 0)
+        self.assertEqual(chutney.loads('I1\n.'), 1)
+        self.assertEqual(chutney.loads('I-1\n.'), -1)
+        self.assertEqual(chutney.loads('I2147483647\n.'), sys.maxint)
+        self.assertEqual(chutney.loads('I-2147483647\n.'), -sys.maxint)
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, 'Ix\n.')
 
 
 class LoadSuite(unittest.TestSuite):
     tests = [
         'error_test',
+        'test_none',
+        'test_bool',
+        'test_int',
     ]
     def __init__(self):
         unittest.TestSuite.__init__(self, map(LoadTests, self.tests))

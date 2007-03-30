@@ -5,20 +5,21 @@
 typedef struct {
     void (*dealloc)(void *value);
 
-    void (*make_null)(void);
+    void *(*make_null)(void);
 
-    void (*make_bool)(int value);
-    void (*make_int)(int value);
-    void (*make_float)(int value);
-    void (*make_string)(char *value, size_t length);
-    void (*make_unicode)(char *value, size_t length);
+    void *(*make_bool)(int value);
+    void *(*make_int)(int value);
+    void *(*make_float)(int value);
+    void *(*make_string)(char *value, size_t length);
+    void *(*make_unicode)(char *value, size_t length);
 
-    void (*make_tuple)(void *value, size_t length);
-    void (*make_dict)(void *value, size_t length);
+    void *(*make_tuple)(void *value, size_t length);
+    void *(*make_dict)(void *value, size_t length);
 } chutney_creators;
 
 enum chutney_states {
-   CHUTNEY_S_OPCODE,
+   CHUTNEY_S_OPCODE,            // Looking for an opcode
+   CHUTNEY_S_INT_NL,            // collect up to \n, process as INT
 };
 
 typedef struct {
@@ -27,6 +28,9 @@ typedef struct {
     void **stack;
     int stack_alloc;
     int stack_size;
+    char *buf;
+    int buf_len;
+    int buf_alloc;
 } chutney_load_state;
 
 typedef struct {
@@ -38,7 +42,10 @@ typedef struct {
 enum chutney_status {
     CHUTNEY_OKAY = 0,
     CHUTNEY_CONTINUE = 1,
-    CHUTNEY_ERROR = -1,
+    CHUTNEY_NOMEM = -1,
+    CHUTNEY_PARSE_ERR = -2,
+    CHUTNEY_STACK_ERR = -3,
+    CHUTNEY_OPCODE_ERR = -4,
 };
 
 extern int chutney_load_init(chutney_load_state *state,

@@ -14,11 +14,26 @@ static void creator_dealloc(void *obj)
     Py_DECREF((PyObject *)obj);
 }
 
+static void *creator_null(void) {
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static void *creator_bool(int value) {
+    PyObject *obj = value ? Py_True : Py_False;
+    Py_INCREF(obj);
+    return (void *)obj;
+}
+
+static void *creator_int(int value) {
+    return (void *)PyInt_FromLong(value);
+}
+
 static chutney_creators creators = {
-    creator_dealloc, /* dealloc */       
-    NULL, /* null */
-    NULL, /* bool */
-    NULL, /* int */
+    creator_dealloc,    /* dealloc */       
+    creator_null,       /* null */
+    creator_bool,       /* bool */
+    creator_int,        /* int */
     NULL, /* float */
     NULL, /* string */
     NULL, /* unicode */
@@ -46,6 +61,10 @@ chutney_loads(PyObject *self, PyObject *args)
     switch (chutney_load(&state, &data, &len)) {
     case CHUTNEY_CONTINUE:
         PyErr_SetNone(PyExc_EOFError);
+        break;
+    case CHUTNEY_NOMEM:
+        if (!PyErr_Occurred())
+            PyErr_NoMemory();
         break;
     case CHUTNEY_OKAY:
         obj = (PyObject *)chutney_load_result(&state);
