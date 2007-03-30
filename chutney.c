@@ -7,17 +7,59 @@
 typedef int Py_ssize_t;
 #endif
 
-static PyObject *ChutneyError, *UnpickleableError;
+static PyObject *ChutneyError, *UnpickleableError, *UnpicklingError;
+
+static void creator_dealloc(void *obj)
+{
+    Py_DECREF((PyObject *)obj);
+}
+
+static chutney_creators creators = {
+    creator_dealloc, /* dealloc */       
+    NULL, /* null */
+    NULL, /* bool */
+    NULL, /* int */
+    NULL, /* float */
+    NULL, /* string */
+    NULL, /* unicode */
+    NULL, /* tuple */
+    NULL, /* dict */
+};
 
 static PyObject *
 chutney_loads(PyObject *self, PyObject *args)
 {
+    PyObject *obj;
     const char *data;
+    int len;
+    chutney_load_state state;
 
-    if (!PyArg_ParseTuple(args, "s", &data))
+    if (!PyArg_ParseTuple(args, "S", &obj))
         return NULL;
-    Py_INCREF(Py_None);
-    return Py_None;
+    if (PyString_AsStringAndSize(obj, (char **)&data, &len) < 0)
+        return NULL;
+    if (chutney_load_init(&state, &creators) < 0) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    obj = NULL;
+    switch (chutney_load(&state, &data, &len)) {
+    case CHUTNEY_CONTINUE:
+        PyErr_SetNone(PyExc_EOFError);
+        break;
+    case CHUTNEY_OKAY:
+        obj = (PyObject *)chutney_load_result(&state);
+        if (obj) {
+            Py_INCREF(obj);
+            break;
+        }
+        /* fallthru */
+    default:
+	PyErr_SetString(UnpicklingError, "parse error");
+        break;
+    }
+    chutney_load_dealloc(&state);
+    return obj;
 }
 
 static int
@@ -152,7 +194,7 @@ save(chutney_dump_state *self, PyObject *obj)
 		goto finally;
             do {
                 PyObject *kv;
-                for (n = 0; n < BATCHSIZE; ++n) {
+                for (n = 0; n < CHUTNEY_BATCHSIZE; ++n) {
                     if (!(kv = PyIter_Next(iter))) {
                         if (PyErr_Occurred())
                             goto dict_finally;
@@ -172,7 +214,7 @@ save(chutney_dump_state *self, PyObject *obj)
                 if (n > 0)
                     if (chutney_save_setitems(self) < 0)
                         goto dict_finally;
-            } while (n == BATCHSIZE);
+            } while (n == CHUTNEY_BATCHSIZE);
             res = 0;
 
         dict_finally:
@@ -250,9 +292,15 @@ initchutney(void)
     ChutneyError = PyErr_NewException("chutney.ChutneyError", NULL, NULL);
     if (!ChutneyError)
         return;
+
     UnpickleableError = PyErr_NewException("chutney.UnpickleableError", 
                                              ChutneyError, NULL);
     if (!UnpickleableError)
+        return;
+
+    UnpicklingError = PyErr_NewException("chutney.UnpicklingError", 
+                                             ChutneyError, NULL);
+    if (!UnpicklingError)
         return;
 
     m = Py_InitModule4("chutney", chutney_methods,
@@ -264,4 +312,5 @@ initchutney(void)
     Py_INCREF(ChutneyError);
     PyModule_AddObject(m, "ChutneyError", ChutneyError);
     PyModule_AddObject(m, "UnpickleableError", UnpickleableError);
+    PyModule_AddObject(m, "UnpicklingError", UnpicklingError);
 }

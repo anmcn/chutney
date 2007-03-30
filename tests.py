@@ -93,11 +93,27 @@ class DumpSuite(unittest.TestSuite):
         unittest.TestSuite.__init__(self, map(DumpTests, self.tests))
 
 
+class LoadTests(unittest.TestCase):
+    def error_test(self):
+        self.assertRaises(TypeError, chutney.loads, None)
+        self.assertRaises(EOFError, chutney.loads, '')
+        self.assertRaises(UnpicklingError, chutney.loads, '.')
+
+
+class LoadSuite(unittest.TestSuite):
+    tests = [
+        'error_test',
+    ]
+    def __init__(self):
+        unittest.TestSuite.__init__(self, map(LoadTests, self.tests))
+
+
 class ChutneySuite(unittest.TestSuite):
     def __init__(self):
         unittest.TestSuite.__init__(self)
         self.addTest(BasicSuite())
         self.addTest(DumpSuite())
+        self.addTest(LoadSuite())
 
 
 suite = ChutneySuite

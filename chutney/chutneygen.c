@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "chutney.h"
+#include "chutneyprotocol.h"
 
 int chutney_dump_init(chutney_dump_state *state, 
                       int (*write)(void *context, const char *s, long n),
