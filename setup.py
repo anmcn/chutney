@@ -20,6 +20,7 @@ DOWNLOAD = 'http://www.object-craft.com.au/projects/chutney/download'
 sources = [
     'chutney/chutneyparse.c',
     'chutney/chutneygen.c',
+    'chutney/chutneyutil.c',
     ]
 
 includes = [

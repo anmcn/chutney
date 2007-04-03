@@ -9,7 +9,7 @@ typedef struct {
 
     void *(*make_bool)(int value);
     void *(*make_int)(int value);
-    void *(*make_float)(int value);
+    void *(*make_float)(double value);
     void *(*make_string)(char *value, size_t length);
     void *(*make_unicode)(char *value, size_t length);
 
@@ -20,6 +20,8 @@ typedef struct {
 enum chutney_states {
    CHUTNEY_S_OPCODE,            // Looking for an opcode
    CHUTNEY_S_INT_NL,            // collect up to \n, process as INT
+   CHUTNEY_S_BININT,            // collect binint bytes, then load
+   CHUTNEY_S_BINFLOAT,          // collect binfloat bytes, then load
 };
 
 typedef struct {
@@ -29,8 +31,9 @@ typedef struct {
     int stack_alloc;
     int stack_size;
     char *buf;
-    int buf_len;
-    int buf_alloc;
+    int buf_len;                // how many bytes are in the buffer
+    int buf_alloc;              // how many bytes of space we've allocated
+    int buf_want;               // how many bytes we're looking for
 } chutney_load_state;
 
 typedef struct {

@@ -29,12 +29,16 @@ static void *creator_int(int value) {
     return (void *)PyInt_FromLong(value);
 }
 
+static void *creator_float(double value) {
+    return (void *)PyFloat_FromDouble(value);
+}
+
 static chutney_creators creators = {
     creator_dealloc,    /* dealloc */       
     creator_null,       /* null */
     creator_bool,       /* bool */
     creator_int,        /* int */
-    NULL, /* float */
+    creator_float,      /* float */
     NULL, /* string */
     NULL, /* unicode */
     NULL, /* tuple */

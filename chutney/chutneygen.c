@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "chutney.h"
 #include "chutneyprotocol.h"
+#include "chutneyutil.h"
 
 int chutney_dump_init(chutney_dump_state *state, 
                       int (*write)(void *context, const char *s, long n),
@@ -50,7 +51,6 @@ chutney_save_bool(chutney_dump_state *self, int value)
 int
 chutney_save_int(chutney_dump_state *self, long value)
 {
-    /* protocol 1
     char c_str[6];
     int len = 0;
 
@@ -66,24 +66,43 @@ chutney_save_int(chutney_dump_state *self, long value)
         len = 5;
     }
     return self->write(self->write_context, c_str, len);
-    */
+
+    /* protocol 0
     char c_str[32];
 
     c_str[0] = INT;
     snprintf(c_str + 1, sizeof(c_str) - 1, "%ld\n", value);
     return self->write(self->write_context, c_str, strlen(c_str));
+    */
 }
 
 int
 chutney_save_float(chutney_dump_state *self, double value)
 {
+    char buf[9], *q = (char *)&value;
+    int i;
+
+    buf[0] = BINFLOAT;
+    switch (detect_ieee_fp()) {
+    case IEEE_LE:
+        for (i = 0; i < 8; ++i)
+            buf[8 - i] = *q++;
+        break;
+    case IEEE_BE:
+        for (i = 0; i < 8; ++i)
+            buf[1 + i] = *q++;
+        break;
+    default:
+        return -1;
+    }
+    return self->write(self->write_context, buf, sizeof(buf));
+    /* protocol 0
     char c_str[250];
 
-    /* We use the protocol 0 format here, as protocol 1 requires
-     * _PyFloat_Pack8, whos implementation is not trivial */
     c_str[0] = FLOAT;
     snprintf(c_str + 1, sizeof(c_str) - 1, "%.17g\n", value);
     return self->write(self->write_context, c_str, strlen(c_str));
+    */
 }
 
 int

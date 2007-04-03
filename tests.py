@@ -33,23 +33,38 @@ class DumpTests(unittest.TestCase):
         self.assertEqual(chutney.dumps(False), '\x89.')
 
     def test_int(self):
-#        self.assertEqual(chutney.dumps(0), 'M\x01\x00.')
-#        self.assertEqual(chutney.dumps(1), 'M\x01\x00.')
-#        self.assertEqual(chutney.dumps(-1), 'J\0xf\0xf\0xf\0xff')
-#        self.assertEqual(chutney.dumps(sys.maxint), 'J\xff\xff\xff\x7f.')
-#        self.assertEqual(chutney.dumps(-sys.maxint), 'J\x01\x00\x00\x80.')
-        self.assertEqual(chutney.dumps(0), 'I0\n.')
-        self.assertEqual(chutney.dumps(1), 'I1\n.')
-        self.assertEqual(chutney.dumps(-1), 'I-1\n.')
-        self.assertEqual(chutney.dumps(sys.maxint), 'I2147483647\n.')
-        self.assertEqual(chutney.dumps(-sys.maxint), 'I-2147483647\n.')
+        # Protocol 1
+        self.assertEqual(chutney.dumps(0), 'M\x00\x00.')
+        self.assertEqual(chutney.dumps(1), 'M\x01\x00.')
+        self.assertEqual(chutney.dumps(-1), 'J\xff\xff\xff\xff.')
+        self.assertEqual(chutney.dumps(sys.maxint), 'J\xff\xff\xff\x7f.')
+        self.assertEqual(chutney.dumps(-sys.maxint), 'J\x01\x00\x00\x80.')
+# Protocol 0
+#        self.assertEqual(chutney.dumps(0), 'I0\n.')
+#        self.assertEqual(chutney.dumps(1), 'I1\n.')
+#        self.assertEqual(chutney.dumps(-1), 'I-1\n.')
+#        self.assertEqual(chutney.dumps(sys.maxint), 'I2147483647\n.')
+#        self.assertEqual(chutney.dumps(-sys.maxint), 'I-2147483647\n.')
 
     def test_float(self):
-        self.assertEqual(chutney.dumps(0.0), 'F0\n.')
-        self.assertEqual(chutney.dumps(1e300), 'F1.0000000000000001e+300\n.')
-        self.assertEqual(chutney.dumps(1e-300), 'F1e-300\n.')
-        self.assertEqual(chutney.dumps(-1e300), 'F-1.0000000000000001e+300\n.')
-        self.assertEqual(chutney.dumps(-1e-300), 'F-1e-300\n.')
+        self.assertEqual(chutney.dumps(0.0), 
+                         'G\x00\x00\x00\x00\x00\x00\x00\x00.')
+        self.assertEqual(chutney.dumps(1.0), 
+                         'G\x3f\xf0\x00\x00\x00\x00\x00\x00.')
+        self.assertEqual(chutney.dumps(1e300),
+                         'G\x7e\x37\xe4\x3c\x88\x00\x75\x9c.')
+        self.assertEqual(chutney.dumps(1e-300),
+                         'G\x01\xa5\x6e\x1f\xc2\xf8\xf3\x59.')
+        self.assertEqual(chutney.dumps(-1e300),
+                         'G\xfe\x37\xe4\x3c\x88\x00\x75\x9c.')
+        self.assertEqual(chutney.dumps(-1e-300),
+                         'G\x81\xa5\x6e\x1f\xc2\xf8\xf3\x59.')
+# Protocol 0
+#        self.assertEqual(chutney.dumps(0.0), 'F0\n.')
+#        self.assertEqual(chutney.dumps(1e300), 'F1.0000000000000001e+300\n.')
+#        self.assertEqual(chutney.dumps(1e-300), 'F1e-300\n.')
+#        self.assertEqual(chutney.dumps(-1e300), 'F-1.0000000000000001e+300\n.')
+#        self.assertEqual(chutney.dumps(-1e-300), 'F-1e-300\n.')
 
     def test_string(self):
         self.assertEqual(chutney.dumps(''), 'U\x00.')
@@ -63,13 +78,15 @@ class DumpTests(unittest.TestCase):
 
     def test_tuple(self):
         self.assertEqual(chutney.dumps(()), '(t.')
-        self.assertEqual(chutney.dumps((None,1,1.0)), '(NI1\nF1\nt.')
+        self.assertEqual(chutney.dumps((None,1,1.0)), 
+                                '(NM\x01\x00G?\xf0\x00\x00\x00\x00\x00\x00t.')
         self.assertEqual(chutney.dumps(((),())), '((t(tt.')
 
     def test_list(self):
         # Lists are sent as tuples
         self.assertEqual(chutney.dumps([]), '(t.')
-        self.assertEqual(chutney.dumps([None,1,1.0]), '(NI1\nF1\nt.')
+        self.assertEqual(chutney.dumps([None,1,1.0]), 
+                                '(NM\x01\x00G?\xf0\x00\x00\x00\x00\x00\x00t.')
         self.assertEqual(chutney.dumps([(),[]]), '((t(tt.')
 
     def test_dict(self):
@@ -116,6 +133,21 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(chutney.loads('I-2147483647\n.'), -sys.maxint)
         self.assertRaises(chutney.UnpicklingError, chutney.loads, 'Ix\n.')
 
+    def test_binint(self):
+        self.assertEqual(chutney.loads('M\x00\x00.'), 0)
+        self.assertEqual(chutney.loads('M\x01\x00.'), 1)
+        self.assertEqual(chutney.loads('J\xff\xff\xff\xff.'), -1)
+        self.assertEqual(chutney.loads('J\xff\xff\xff\x7f.'), sys.maxint)
+        self.assertEqual(chutney.loads('J\x01\x00\x00\x80.'), -sys.maxint)
+    
+    def test_binfloat(self):
+        self.assertEqual(chutney.loads('G\x00\x00\x00\x00\x00\x00\x00\x00.'), 0.0)
+        self.assertEqual(chutney.loads('G\x3f\xf0\x00\x00\x00\x00\x00\x00.'), 1.0)
+        self.assertEqual(chutney.loads('G\x7e\x37\xe4\x3c\x88\x00\x75\x9c.'), 1e300)
+        self.assertEqual(chutney.loads('G\x01\xa5\x6e\x1f\xc2\xf8\xf3\x59.'), 1e-300)
+        self.assertEqual(chutney.loads('G\xfe\x37\xe4\x3c\x88\x00\x75\x9c.'), -1e300)
+        self.assertEqual(chutney.loads('G\x81\xa5\x6e\x1f\xc2\xf8\xf3\x59.'), -1e-300)
+
 
 class LoadSuite(unittest.TestSuite):
     tests = [
@@ -123,6 +155,8 @@ class LoadSuite(unittest.TestSuite):
         'test_none',
         'test_bool',
         'test_int',
+        'test_binint',
+        'test_binfloat',
     ]
     def __init__(self):
         unittest.TestSuite.__init__(self, map(LoadTests, self.tests))
