@@ -10,8 +10,8 @@ typedef struct {
     void *(*make_bool)(int value);
     void *(*make_int)(int value);
     void *(*make_float)(double value);
-    void *(*make_string)(char *value, size_t length);
-    void *(*make_unicode)(char *value, size_t length);
+    void *(*make_string)(const char *value, long length);
+    void *(*make_unicode)(const char *value, long length);
 
     void *(*make_tuple)(void *value, size_t length);
     void *(*make_dict)(void *value, size_t length);
@@ -22,6 +22,10 @@ enum chutney_states {
    CHUTNEY_S_INT_NL,            // collect up to \n, process as INT
    CHUTNEY_S_BININT,            // collect binint bytes, then load
    CHUTNEY_S_BINFLOAT,          // collect binfloat bytes, then load
+   CHUTNEY_S_BINSTRING,         // collect N bytes, then load
+   CHUTNEY_S_BINSTRING_LEN,     // collect binstring byte count, then load
+   CHUTNEY_S_BINUNICODE,        // collect N bytes, then load
+   CHUTNEY_S_BINUNICODE_LEN,    // collect binunicode byte count, then load
 };
 
 typedef struct {

@@ -33,14 +33,25 @@ static void *creator_float(double value) {
     return (void *)PyFloat_FromDouble(value);
 }
 
+static void *creator_string(const char *value, long len)
+{
+    return (void *)PyString_FromStringAndSize(value, len);
+}
+
+static void *creator_unicode(const char *value, long len)
+{
+    return (void *)PyUnicode_DecodeUTF8(value, len, NULL);
+}
+
+
 static chutney_creators creators = {
     creator_dealloc,    /* dealloc */       
     creator_null,       /* null */
     creator_bool,       /* bool */
     creator_int,        /* int */
     creator_float,      /* float */
-    NULL, /* string */
-    NULL, /* unicode */
+    creator_string,     /* string */
+    creator_unicode,    /* unicode */
     NULL, /* tuple */
     NULL, /* dict */
 };

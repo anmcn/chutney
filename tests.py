@@ -148,6 +148,16 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(chutney.loads('G\xfe\x37\xe4\x3c\x88\x00\x75\x9c.'), -1e300)
         self.assertEqual(chutney.loads('G\x81\xa5\x6e\x1f\xc2\xf8\xf3\x59.'), -1e-300)
 
+    def test_binstring(self):
+        self.assertEqual(chutney.loads('U\x00.'), '')
+        self.assertEqual(chutney.loads('U\xff' + 'X' * 255 + '.'), 'X' * 255)
+        self.assertEqual(chutney.loads('T\x00\x01\x00\x00' + 'X' * 256 + '.'), 
+                         'X' * 256)
+
+    def test_unicode(self):
+        self.assertEqual(chutney.loads('X\x00\x00\x00\x00.'), u'')
+        self.assertEqual(chutney.loads('X\x03\x00\x00\x00abc.'), u'abc')
+
 
 class LoadSuite(unittest.TestSuite):
     tests = [
@@ -157,6 +167,8 @@ class LoadSuite(unittest.TestSuite):
         'test_int',
         'test_binint',
         'test_binfloat',
+        'test_binstring',
+        'test_unicode',
     ]
     def __init__(self):
         unittest.TestSuite.__init__(self, map(LoadTests, self.tests))
