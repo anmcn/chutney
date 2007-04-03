@@ -9,40 +9,86 @@ typedef int Py_ssize_t;
 
 static PyObject *ChutneyError, *UnpickleableError, *UnpicklingError;
 
-static void creator_dealloc(void *obj)
+static void
+creator_dealloc(void *obj)
 {
     Py_DECREF((PyObject *)obj);
 }
 
-static void *creator_null(void) {
+static void *
+creator_null(void) {
     Py_INCREF(Py_None);
     return Py_None;
 }
 
-static void *creator_bool(int value) {
+static void *
+creator_bool(int value) {
     PyObject *obj = value ? Py_True : Py_False;
     Py_INCREF(obj);
     return (void *)obj;
 }
 
-static void *creator_int(int value) {
+static void *
+creator_int(int value) {
     return (void *)PyInt_FromLong(value);
 }
 
-static void *creator_float(double value) {
+static void *
+creator_float(double value) {
     return (void *)PyFloat_FromDouble(value);
 }
 
-static void *creator_string(const char *value, long len)
+static void *
+creator_string(const char *value, long len)
 {
     return (void *)PyString_FromStringAndSize(value, len);
 }
 
-static void *creator_unicode(const char *value, long len)
+static void *
+creator_unicode(const char *value, long len)
 {
     return (void *)PyUnicode_DecodeUTF8(value, len, NULL);
 }
 
+static void *
+creator_tuple(void **values, long count)
+{
+    PyObject *obj;
+    int i;
+
+    obj = PyTuple_New(count);
+    if (obj)
+        for (i = 0; i < count; i++)
+            PyTuple_SET_ITEM(obj, i, (PyObject *)values[i]);
+    else
+        for (i = 0; i < count; i++)
+            Py_DECREF((PyObject *)values[i]);
+    return obj;
+}
+
+static void *
+creator_empty_dict(void)
+{
+    return (void *)PyDict_New();
+}
+
+static int
+dict_setitems(void *dict, void **values, long count)
+{
+    PyObject *key, *value;
+    long i;
+    int ret = 0;
+
+    for (i = 0; i < count; i += 2) {
+        key = (PyObject *)values[i]; 
+        value = (PyObject *)values[i+1];
+        if (!ret && PyObject_SetItem((PyObject *)dict, key, value) < 0)
+            ret = -1;
+        Py_DECREF(key);
+        Py_DECREF(value);
+    }
+    return ret;
+}
 
 static chutney_creators creators = {
     creator_dealloc,    /* dealloc */       
@@ -52,8 +98,9 @@ static chutney_creators creators = {
     creator_float,      /* float */
     creator_string,     /* string */
     creator_unicode,    /* unicode */
-    NULL, /* tuple */
-    NULL, /* dict */
+    creator_tuple,      /* tuple */
+    creator_empty_dict, /* dict */
+    dict_setitems,      /* setitems */
 };
 
 static PyObject *

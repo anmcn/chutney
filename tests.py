@@ -158,6 +158,26 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(chutney.loads('X\x00\x00\x00\x00.'), u'')
         self.assertEqual(chutney.loads('X\x03\x00\x00\x00abc.'), u'abc')
 
+    def test_tuple(self):
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, 't.')
+        self.assertEqual(chutney.loads('(t.'), ())
+        self.assertEqual(chutney.loads(
+                '(NM\x01\x00G?\xf0\x00\x00\x00\x00\x00\x00t.'), (None,1,1.0)) 
+        self.assertEqual(chutney.loads('((t(tt.'), ((),()))
+
+    def test_dict(self):
+        self.assertEqual(chutney.loads('}.'), {})
+        self.assertEqual(chutney.loads('}(u.'), {})
+        self.assertEqual(chutney.loads('}(NNu.'), {None: None})
+        # SETITEMS with no matching MARK
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, 'u.')
+        # empty SETITEMS with no dict on stack
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, '(u.')
+        # non-empty SETITEMS with no dict on stack
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, '(NNu.')
+        # SETITEMS on a tuple, rather than a dict
+        self.assertRaises(TypeError, chutney.loads, '(t(NNu.')
+ 
 
 class LoadSuite(unittest.TestSuite):
     tests = [
@@ -169,6 +189,8 @@ class LoadSuite(unittest.TestSuite):
         'test_binfloat',
         'test_binstring',
         'test_unicode',
+        'test_tuple',
+        'test_dict',
     ]
     def __init__(self):
         unittest.TestSuite.__init__(self, map(LoadTests, self.tests))

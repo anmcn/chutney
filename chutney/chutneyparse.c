@@ -17,6 +17,9 @@ chutney_load_init(chutney_load_state *state, chutney_creators *creators)
     state->stack_alloc = 256;
     if (!(state->stack = malloc(state->stack_alloc * sizeof(void *))))
         return -1;
+    state->marks = NULL;
+    state->marks_alloc = 0;
+    state->marks_size = 0;
     state->buf_len = 0;
     state->buf_alloc = 0;
     state->buf = NULL;
@@ -32,9 +35,20 @@ chutney_load_dealloc(chutney_load_state *state)
         state->creators.dealloc(obj);
     free(state->stack);
     state->stack = NULL;
+    free(state->marks);
+    state->marks = NULL;
     if (state->buf)
         free(state->buf);
     state->buf = NULL;
+}
+
+void
+stack_dealloc(chutney_load_state *state, void **values, long count)
+{
+    long i;
+
+    for (i = 0; i < count; ++i)
+        state->creators.dealloc(values[i]);
 }
 
 static int stack_grow(chutney_load_state *state)
@@ -68,6 +82,46 @@ stack_push(chutney_load_state *state, void *obj)
         if (stack_grow(state) < 0)
             return CHUTNEY_NOMEM;
     state->stack[state->stack_size++] = obj;
+    return CHUTNEY_OKAY;
+}
+
+static int
+mark_push(chutney_load_state *state)
+{
+    int alloc, *marks;
+    if (state->marks_alloc == state->marks_size) {
+        alloc = state->marks_alloc + 20;
+        if (state->marks)
+            marks = (int *)malloc(alloc * sizeof(int));
+        else
+            marks = (int *)realloc(state->marks, alloc * sizeof(int));
+        if (!marks)
+            return -1;
+        state->marks = marks;
+        state->marks_alloc = alloc;
+    }
+    state->marks[state->marks_size++] = state->stack_size;
+    return 0;
+}
+
+static int
+mark_pop(chutney_load_state *state)
+{
+    if (!state->marks_size)
+        return -1;
+    return state->marks[--state->marks_size];
+}
+
+static enum chutney_status
+stack_pop_mark(chutney_load_state *state, void ***items, long *count)
+{
+    long mark;
+
+    if ((mark = mark_pop(state)) < 0)
+        return CHUTNEY_NOMARK_ERR;
+    *items = &state->stack[mark];
+    *count = state->stack_size - mark;
+    state->stack_size = mark;
     return CHUTNEY_OKAY;
 }
 
@@ -165,6 +219,44 @@ load_binfloat(chutney_load_state *state, void **objp)
     return *objp ? CHUTNEY_OKAY : CHUTNEY_NOMEM;
 }
 
+static enum chutney_status
+load_tuple(chutney_load_state *state, void **objp)
+{
+    void **values = NULL;
+    long count = 0;
+    static enum chutney_status err = CHUTNEY_OKAY;
+
+    err = stack_pop_mark(state, &values, &count);
+    if (err != CHUTNEY_OKAY)
+        return err;
+    *objp = state->creators.make_tuple(values, count);
+    return *objp ? CHUTNEY_OKAY : CHUTNEY_NOMEM;
+}
+
+static enum chutney_status
+dict_setitems(chutney_load_state *state)
+{
+    void **values = NULL;
+    long count = 0;
+    void *dict;
+    static enum chutney_status err;
+
+    err = stack_pop_mark(state, &values, &count);
+    if (err != CHUTNEY_OKAY)
+        return err;
+    /* Odd number of items => unpaired key/value */
+    /* Empty stack => no dictionary */
+    if (count & 1 || !state->stack_size) {
+        stack_dealloc(state, values, count);
+        return CHUTNEY_PARSE_ERR;
+    }
+    dict = state->stack[state->stack_size - 1];
+    if (state->creators.dict_setitems(dict, values, count) < 0)
+        return CHUTNEY_NOMEM;
+    else
+        return CHUTNEY_OKAY;
+}
+
 enum chutney_status 
 chutney_load(chutney_load_state *state, const char **datap, int *len)
 {
@@ -182,6 +274,10 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
                 if (state->stack_size != 1)
                     return CHUTNEY_STACK_ERR;
                 return CHUTNEY_OKAY;
+            case MARK:
+                if (mark_push(state) < 0)
+                    return CHUTNEY_NOMEM;
+                break;
             case NONE:
                 err = stack_push(state, state->creators.make_null());
                 break;
@@ -216,6 +312,18 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
             case BINUNICODE:
                 state->parser_state = CHUTNEY_S_BINUNICODE_LEN;
                 state->buf_want = 4;
+                break;
+            case TUPLE:
+                err = load_tuple(state, &obj);
+                if (err == CHUTNEY_OKAY)
+                    err = stack_push(state, obj);
+                break;
+            case EMPTY_DICT:
+                obj = state->creators.make_empty_dict();
+                err = stack_push(state, obj);
+                break;
+            case SETITEMS:
+                err = dict_setitems(state);
                 break;
             default:
                 return CHUTNEY_OPCODE_ERR;
