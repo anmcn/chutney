@@ -60,16 +60,19 @@ enum chutney_status {
     CHUTNEY_NOMARK_ERR = -5,
 };
 
+/* Load function */
 extern int chutney_load_init(chutney_load_state *state,
                              chutney_creators *creators); 
 extern void chutney_load_dealloc(chutney_load_state *state); 
 extern enum chutney_status chutney_load(chutney_load_state *state, 
-                                        const char **data, int *len);
+                                        const char **data, int *length);
 extern void *chutney_load_result(chutney_load_state *state);
 
+/* Dump functions */
 extern int chutney_dump_init(chutney_dump_state *state, 
                       int (*write)(void *context, const char *s, long n),
                       void *write_context);
+extern void chutney_dump_dealloc(chutney_dump_state *state);
 
 extern int chutney_save_stop(chutney_dump_state *self);
 extern int chutney_save_mark(chutney_dump_state *self);

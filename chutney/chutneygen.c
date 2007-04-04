@@ -14,6 +14,11 @@ int chutney_dump_init(chutney_dump_state *state,
     return 0;
 }
 
+void
+chutney_dump_dealloc(chutney_dump_state *state)
+{
+}
+
 int
 chutney_save_stop(chutney_dump_state *self)
 {

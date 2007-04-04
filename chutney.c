@@ -342,6 +342,8 @@ chutney_dumps(PyObject *self, PyObject *args)
     if (dump(&pickler, obj) < 0)
         goto finally;
 
+    chutney_dump_dealloc(&pickler);
+
     res = PycStringIO->cgetvalue(file);
 
 finally:
