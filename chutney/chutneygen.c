@@ -183,3 +183,39 @@ chutney_save_setitems(chutney_dump_state *self)
     return self->write(self->write_context, &setitems, 1);
 }
 
+int chutney_save_global(chutney_dump_state *self, 
+                        const char *module, const char *name)
+{
+    static char global = GLOBAL, nl = '\n';
+    int module_len = strlen(module);
+    int name_len = strlen(name);
+
+    if (self->write(self->write_context, &global, 1) < 0)
+        return -1;
+    if (self->write(self->write_context, module, module_len) < 0)
+        return -1;
+    if (self->write(self->write_context, &nl, 1) < 0)
+        return -1;
+    if (self->write(self->write_context, name, name_len) < 0)
+        return -1;
+    if (self->write(self->write_context, &nl, 1) < 0)
+        return -1;
+    return 0;
+}
+
+int
+chutney_save_obj(chutney_dump_state *self)
+{
+    static char obj = OBJ;
+
+    return self->write(self->write_context, &obj, 1);
+}
+
+int
+chutney_save_build(chutney_dump_state *self)
+{
+    static char build = BUILD;
+
+    return self->write(self->write_context, &build, 1);
+}
+

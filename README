@@ -1,7 +1,9 @@
 CHUTNEY
 =======
 
-A simple portable subset of the Python pickle protocol.
+A simple portable subset of the Python pickle protocol. What little
+documentation exists for the pickle protocol is in the Python
+pickletools.py module source as comments.
 
 Chutney support serialising:
     
@@ -35,7 +37,8 @@ Chutney Library
 
 The library lives in the "chutney" subdirectory. No defines or platform
 detection is required (the library detects the floating point format at
-run-time, however). "chutney.h" contains the public interface definitions.
+run-time, however). "chutney.h" contains the public interface definitions,
+and it should be read in conjunction with this documentation.
 
 The chutney API reflects the pickle state machine - reading the pickle
 documentation (in the Python pickletools module source) will aid

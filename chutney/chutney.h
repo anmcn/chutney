@@ -87,3 +87,7 @@ extern int chutney_save_utf8(chutney_dump_state *self,
 extern int chutney_save_tuple(chutney_dump_state *self);
 extern int chutney_save_empty_dict(chutney_dump_state *self);
 extern int chutney_save_setitems(chutney_dump_state *self);
+extern int chutney_save_global(chutney_dump_state *self, 
+                                const char *module, const char *name);
+extern int chutney_save_obj(chutney_dump_state *self);
+extern int chutney_save_build(chutney_dump_state *self);

@@ -9,6 +9,8 @@ typedef int Py_ssize_t;
 
 static PyObject *ChutneyError, *UnpickleableError, *UnpicklingError;
 
+static int save(chutney_dump_state *self, PyObject *obj);
+
 static void
 creator_dealloc(void *obj)
 {
@@ -155,6 +157,47 @@ cString_write(void *context, const char *s, long n)
     return (int)n;
 }
 
+static int
+save_inst(chutney_dump_state *self, PyObject *obj)
+{
+    PyObject *class = NULL;
+    PyObject *dict_obj = NULL;
+    PyObject *global_name = NULL;
+    PyObject *module_name = NULL;
+    char *name_str, *module_str;
+    int res = -1;
+
+    if ((class = PyObject_GetAttrString(obj, "__class__")) == NULL)
+        goto finally;
+    if ((dict_obj = PyObject_GetAttrString(obj, "__dict__")) == NULL)
+        goto finally;
+
+    if ((global_name = PyObject_GetAttrString(class, "__name__")) == NULL)
+        goto finally;
+    if ((name_str = PyString_AsString(global_name)) == NULL)
+        goto finally;
+    if ((module_name = PyObject_GetAttrString(class, "__module__")) == NULL)
+        goto finally;
+    if ((module_str = PyString_AsString(module_name)) == NULL)
+        goto finally;
+
+    if (chutney_save_mark(self) < 0)
+        goto finally;
+    if (chutney_save_global(self, module_str, name_str) < 0)
+        goto finally;
+    if (chutney_save_obj(self) < 0)
+        goto finally;
+    if (save(self, dict_obj) < 0)
+        goto finally;
+    if (chutney_save_build(self) < 0)
+        goto finally;
+    res = 0;
+finally:
+    Py_XDECREF(module_name);
+    Py_XDECREF(global_name);
+    Py_XDECREF(class);
+    return res;
+}
 
 static int
 save(chutney_dump_state *self, PyObject *obj)
@@ -183,6 +226,9 @@ save(chutney_dump_state *self, PyObject *obj)
         if (type == &PyInt_Type) {
             long value = PyInt_AS_LONG((PyIntObject *)obj);
             res = chutney_save_int(self, value);
+            goto finally;
+        } else if (type == &PyInstance_Type) {
+            res = save_inst(self, obj);
             goto finally;
         }
         break;
