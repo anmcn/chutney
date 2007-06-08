@@ -76,7 +76,7 @@ static int stack_grow(chutney_load_state *state)
 static enum chutney_status
 stack_push(chutney_load_state *state, void *obj)
 {
-    if (!obj)
+    if (obj == NULL)
         return CHUTNEY_NOMEM;
     if (state->stack_size == state->stack_alloc)
         if (stack_grow(state) < 0)
@@ -158,8 +158,25 @@ buf_putc(chutney_load_state *state, char c)
     return 0;
 }
 
+static void
+state_buf_nl(chutney_load_state *state, 
+             int (*completion)(chutney_load_state *state))
+{
+    state->parser_state = CHUTNEY_S_BUF_NL;
+    state->completion = completion;
+}
+
+static void
+state_buf_count(chutney_load_state *state, int count, 
+                int (*completion)(chutney_load_state *state))
+{
+    state->parser_state = CHUTNEY_S_BUF_CNT;
+    state->buf_want = count;
+    state->completion = completion;
+}
+
 static enum chutney_status
-load_int(chutney_load_state *state, void **objp)
+load_int(chutney_load_state *state)
 {
     long l;
     char *end;
@@ -168,8 +185,7 @@ load_int(chutney_load_state *state, void **objp)
     l = strtol(state->buf, &end, 0);
     if (errno || *end != '\0')
         return CHUTNEY_PARSE_ERR;
-    *objp = state->creators.make_int(l);
-    return *objp ? CHUTNEY_OKAY : CHUTNEY_NOMEM;
+    return stack_push(state, state->creators.make_int(l));
 }
 
 static long
@@ -188,14 +204,13 @@ parse_binint(chutney_load_state *state)
 }
 
 static enum chutney_status
-load_binint(chutney_load_state *state, void **objp)
+load_binint(chutney_load_state *state)
 {
-    *objp = state->creators.make_int(parse_binint(state));
-    return *objp ? CHUTNEY_OKAY : CHUTNEY_NOMEM;
+    return stack_push(state, state->creators.make_int(parse_binint(state)));
 }
 
 static enum chutney_status
-load_binfloat(chutney_load_state *state, void **objp)
+load_binfloat(chutney_load_state *state)
 {
     double l;
     char buf[8], *q;
@@ -215,8 +230,7 @@ load_binfloat(chutney_load_state *state, void **objp)
     default:
         return CHUTNEY_PARSE_ERR;
     }
-    *objp = state->creators.make_float(l);
-    return *objp ? CHUTNEY_OKAY : CHUTNEY_NOMEM;
+    return stack_push(state, state->creators.make_float(l));
 }
 
 static enum chutney_status
@@ -257,6 +271,43 @@ dict_setitems(chutney_load_state *state)
         return CHUTNEY_OKAY;
 }
 
+static enum chutney_status
+load_binstring(struct chutney_load_state *state)
+{
+    return stack_push(state, state->creators.make_string(state->buf, 
+                                                         state->buf_len));
+}
+
+
+static enum chutney_status
+s_binstring(struct chutney_load_state *state)
+{
+    int want = parse_binint(state);
+
+    if (!want)
+        return stack_push(state, state->creators.make_string("", 0));
+    state_buf_count(state, want, load_binstring);
+    return CHUTNEY_OKAY;
+}
+
+static enum chutney_status
+load_binunicode(struct chutney_load_state *state)
+{
+    return stack_push(state, state->creators.make_unicode(state->buf, 
+                                                          state->buf_len));
+}
+
+static enum chutney_status
+s_binunicode(struct chutney_load_state *state)
+{
+    int want = parse_binint(state);
+
+    if (!want)
+        return stack_push(state, state->creators.make_unicode("", 0));
+    state_buf_count(state, want, load_binunicode);
+    return CHUTNEY_OKAY;
+}
+
 enum chutney_status 
 chutney_load(chutney_load_state *state, const char **datap, int *len)
 {
@@ -287,31 +338,25 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
                 err = stack_push(state, obj);
                 break;
             case INT:
-                state->parser_state = CHUTNEY_S_INT_NL;
+                state_buf_nl(state, load_int);
                 break;
             case BININT:
-                state->parser_state = CHUTNEY_S_BININT;
-                state->buf_want = 4;
+                state_buf_count(state, 4, load_binint);
                 break;
             case BININT2:
-                state->parser_state = CHUTNEY_S_BININT;
-                state->buf_want = 2;
+                state_buf_count(state, 2, load_binint);
                 break;
             case BINFLOAT:
-                state->parser_state = CHUTNEY_S_BINFLOAT;
-                state->buf_want = 8;
+                state_buf_count(state, 8, load_binfloat);
                 break;
             case SHORT_BINSTRING:
-                state->parser_state = CHUTNEY_S_BINSTRING_LEN;
-                state->buf_want = 1;
+                state_buf_count(state, 1, s_binstring);
                 break;
             case BINSTRING:
-                state->parser_state = CHUTNEY_S_BINSTRING_LEN;
-                state->buf_want = 4;
+                state_buf_count(state, 4, s_binstring);
                 break;
             case BINUNICODE:
-                state->parser_state = CHUTNEY_S_BINUNICODE_LEN;
-                state->buf_want = 4;
+                state_buf_count(state, 4, s_binunicode);
                 break;
             case TUPLE:
                 err = load_tuple(state, &obj);
@@ -325,86 +370,36 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
             case SETITEMS:
                 err = dict_setitems(state);
                 break;
+            case GLOBAL:
+                break;
             default:
                 return CHUTNEY_OPCODE_ERR;
             }
             break;
 
         /* collect bytes until newline */
-        case CHUTNEY_S_INT_NL:
+        case CHUTNEY_S_BUF_NL:
             if (c != '\n')
                 buf_putc(state, c);
             else {
+                completion_fn completion = state->completion;
                 buf_putc(state, '\0'); --state->buf_len;
-                switch (state->parser_state) {
-                case CHUTNEY_S_INT_NL:
-                    err = load_int(state, &obj);
-                    break;
-                default:                /* coding error */
-                    return CHUTNEY_PARSE_ERR;
-                }
-                state->buf_len = 0;
-                if (!err)
-                    err = stack_push(state, obj);
+                state->completion = NULL;
                 state->parser_state = CHUTNEY_S_OPCODE;
+                err = completion(state);
+                state->buf_len = 0;
             }
             break;
 
         /* collect want_buf bytes */
-        case CHUTNEY_S_BININT:
-        case CHUTNEY_S_BINFLOAT:
-        case CHUTNEY_S_BINSTRING_LEN:
-        case CHUTNEY_S_BINSTRING:
-        case CHUTNEY_S_BINUNICODE_LEN:
-        case CHUTNEY_S_BINUNICODE:
+        case CHUTNEY_S_BUF_CNT:
             buf_putc(state, c);
             if (state->buf_len == state->buf_want) {
-                obj = NULL;
-                switch (state->parser_state) {
-                case CHUTNEY_S_BININT:
-                    err = load_binint(state, &obj);
-                    state->parser_state = CHUTNEY_S_OPCODE;
-                    break;
-                case CHUTNEY_S_BINFLOAT:
-                    err = load_binfloat(state, &obj);
-                    state->parser_state = CHUTNEY_S_OPCODE;
-                    break;
-                case CHUTNEY_S_BINSTRING_LEN:
-                    state->buf_want = parse_binint(state);
-                    if (!state->buf_want) {
-                        obj = state->creators.make_string("", 0);
-                        state->parser_state = CHUTNEY_S_OPCODE;
-                    } else
-                        state->parser_state = CHUTNEY_S_BINSTRING;
-                    break;
-                case CHUTNEY_S_BINSTRING:
-                    obj = state->creators.make_string(state->buf, 
-                                                      state->buf_len);
-                    if (!obj)
-                        err = CHUTNEY_NOMEM;
-                    state->parser_state = CHUTNEY_S_OPCODE;
-                    break;
-                case CHUTNEY_S_BINUNICODE_LEN:
-                    state->buf_want = parse_binint(state);
-                    if (!state->buf_want) {
-                        obj = state->creators.make_unicode("", 0);
-                        state->parser_state = CHUTNEY_S_OPCODE;
-                    } else
-                        state->parser_state = CHUTNEY_S_BINUNICODE;
-                    break;
-                case CHUTNEY_S_BINUNICODE:
-                    obj = state->creators.make_unicode(state->buf, 
-                                                       state->buf_len);
-                    if (!obj)
-                        err = CHUTNEY_NOMEM;
-                    state->parser_state = CHUTNEY_S_OPCODE;
-                    break;
-                default:                /* coding error */
-                    return CHUTNEY_PARSE_ERR;
-                }
+                completion_fn completion = state->completion;
+                state->completion = NULL;
+                state->parser_state = CHUTNEY_S_OPCODE;
+                err = completion(state);
                 state->buf_len = 0;
-                if (err == CHUTNEY_OKAY && obj)
-                    err = stack_push(state, obj);
             }
             break;
         }

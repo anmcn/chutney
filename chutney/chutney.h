@@ -16,20 +16,27 @@ typedef struct {
     void *(*make_tuple)(void **values, long count);
     void *(*make_empty_dict)(void);
     int (*dict_setitems)(void *dict, void **values, long count);
+    void *(*get_global)(const char *module, const char *name);
 } chutney_creators;
 
 enum chutney_states {
    CHUTNEY_S_OPCODE,            // Looking for an opcode
-   CHUTNEY_S_INT_NL,            // collect up to \n, process as INT
-   CHUTNEY_S_BININT,            // collect binint bytes, then parse
-   CHUTNEY_S_BINFLOAT,          // collect binfloat bytes, then parse
-   CHUTNEY_S_BINSTRING,         // collect N bytes, then generate obj
-   CHUTNEY_S_BINSTRING_LEN,     // collect binstring byte count, then parse
-   CHUTNEY_S_BINUNICODE,        // collect N bytes, then generate obj
-   CHUTNEY_S_BINUNICODE_LEN,    // collect binunicode byte count, then parse
+   // Following states call state->completion
+   CHUTNEY_S_BUF_NL,            // collect up to \n
+   CHUTNEY_S_BUF_CNT,           // collect want_cnt bytes
 };
 
-typedef struct {
+enum chutney_status {
+    CHUTNEY_OKAY = 0,
+    CHUTNEY_CONTINUE = 1,
+    CHUTNEY_NOMEM = -1,
+    CHUTNEY_PARSE_ERR = -2,
+    CHUTNEY_STACK_ERR = -3,
+    CHUTNEY_OPCODE_ERR = -4,
+    CHUTNEY_NOMARK_ERR = -5,
+};
+
+typedef struct chutney_load_state {
     chutney_creators creators;
     enum chutney_states parser_state;
     void **stack;
@@ -42,23 +49,17 @@ typedef struct {
     int buf_len;                // how many bytes are in the buffer
     int buf_alloc;              // how many bytes of space we've allocated
     int buf_want;               // how many bytes we're looking for
+    enum chutney_status (*completion)(struct chutney_load_state *state);
+                                // Some states call this on completion of their
+                                // action.
 } chutney_load_state;
+typedef enum chutney_status (*completion_fn)(struct chutney_load_state *);
 
 typedef struct {
     long depth;     // Recursion depth - not used by lib, available for user
     int (*write)(void *context, const char *s, long n);
     void *write_context;
 } chutney_dump_state;
-
-enum chutney_status {
-    CHUTNEY_OKAY = 0,
-    CHUTNEY_CONTINUE = 1,
-    CHUTNEY_NOMEM = -1,
-    CHUTNEY_PARSE_ERR = -2,
-    CHUTNEY_STACK_ERR = -3,
-    CHUTNEY_OPCODE_ERR = -4,
-    CHUTNEY_NOMARK_ERR = -5,
-};
 
 /* Load function */
 extern int chutney_load_init(chutney_load_state *state,

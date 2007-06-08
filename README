@@ -63,16 +63,26 @@ For simple objects (null, bool, int, float, string and utf8), simply
 call the appropriate chutney_save_??? method, passing the state object
 and value (if any). See the prototypes in chutney/chutney.h for details.
 
-To save a tuple, you must first save a mark with chutney_save_mark(), then
-add the objects you want in the tuple, then call chutney_save_tuple().
+To save a tuple:
+    chutney_save_mark()
+    save objects in the tuple
+    chutney_save_tuple()
 
-To save a dict, call chutney_save_empty_dict(), then
-chutney_save_mark(), then add the keys and values in pairs, finally
-calling chutney_save_setitems(). Note that, strictly speaking, items
-should be added in blocks of less than 1000, although this is not enforced
-by either chutney, or Python pickle. To add multiple batches, repeat the
-chutney_save_mark(), save keys and values and chutney_save_setitems()
-as many times as required.
+To save a dictionary:
+    chutney_save_empty_dict()
+    chutney_save_mark()
+    save up to CHUTNEY_BATCHSIZE key and value objects in pairs
+    chutney_save_setitems
+
+If you have more than CHUTNEY_BATCHSIZE items to save, repeat the MARK,
+CHUTNEY_BATCHSIZE keys and values, SETITEMS as many times as is required.
+
+To save an instance:
+    chutney_save_mark()
+    chutney_save_global() passing module name and class name
+    chutney_save_obj()
+    save instance dictionary
+    chutney_save_build()
 
 When complete, chutney_save_stop() must be called. chutney_dump_dealloc()
 should then be called to release any storage referenced by the state
