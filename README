@@ -18,7 +18,8 @@ Chutney support serialising:
 Unlike Python's pickle, no memoising is performed (at this time).
 Consequently, reference cycles are not detected, and multiple references
 to the same structure will result in the structure being saved in it's
-entirety multiple times.
+entirety multiple times. Additionally, modules are NOT imported when
+unpickling instances - they must already be in sys.modules.
 
 The protocol used is a subset of pickle protocol 1. The parser probably
 will not parse Python generated pickles except in simple cases, but

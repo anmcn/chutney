@@ -92,6 +92,27 @@ dict_setitems(void *dict, void **values, long count)
     return ret;
 }
 
+static void *
+get_global(const char *module_name, const char *global_name)
+{
+    /* Unlike py pickle, this version does not import the module if it is not
+     * already in sys.modules. This is a (minor) security measure.
+     *
+     * XXX As a future measure, we will probably make the user supply a
+     * "modules" dictionary, so they can further limit what objects can be
+     * instantiated.
+     */
+    PyObject *global, *module;
+
+    if ((module = PySys_GetObject("modules")) == NULL)
+        return NULL;
+    if ((module = PyDict_GetItemString(module, module_name)) == NULL)
+        return NULL;
+    if ((global = PyObject_GetAttrString(module, global_name)) == NULL)
+        return NULL;
+    return global;
+}
+
 static chutney_creators creators = {
     creator_dealloc,    /* dealloc */       
     creator_null,       /* null */
@@ -103,6 +124,7 @@ static chutney_creators creators = {
     creator_tuple,      /* tuple */
     creator_empty_dict, /* dict */
     dict_setitems,      /* setitems */
+    get_global,         /* get global reference */
 };
 
 static PyObject *
@@ -161,7 +183,7 @@ static int
 save_inst(chutney_dump_state *self, PyObject *obj)
 {
     PyObject *class = NULL;
-    PyObject *dict_obj = NULL;
+    PyObject *instance_dict = NULL;
     PyObject *global_name = NULL;
     PyObject *module_name = NULL;
     char *name_str, *module_str;
@@ -169,7 +191,7 @@ save_inst(chutney_dump_state *self, PyObject *obj)
 
     if ((class = PyObject_GetAttrString(obj, "__class__")) == NULL)
         goto finally;
-    if ((dict_obj = PyObject_GetAttrString(obj, "__dict__")) == NULL)
+    if ((instance_dict = PyObject_GetAttrString(obj, "__dict__")) == NULL)
         goto finally;
 
     if ((global_name = PyObject_GetAttrString(class, "__name__")) == NULL)
@@ -187,7 +209,7 @@ save_inst(chutney_dump_state *self, PyObject *obj)
         goto finally;
     if (chutney_save_obj(self) < 0)
         goto finally;
-    if (save(self, dict_obj) < 0)
+    if (save(self, instance_dict) < 0)
         goto finally;
     if (chutney_save_build(self) < 0)
         goto finally;
@@ -195,6 +217,7 @@ save_inst(chutney_dump_state *self, PyObject *obj)
 finally:
     Py_XDECREF(module_name);
     Py_XDECREF(global_name);
+    Py_XDECREF(instance_dict);
     Py_XDECREF(class);
     return res;
 }

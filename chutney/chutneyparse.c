@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <limits.h>
+#include <assert.h>
+#include <string.h>
 #include "chutney.h"
 #include "chutneyprotocol.h"
 #include "chutneyutil.h"
@@ -23,6 +25,7 @@ chutney_load_init(chutney_load_state *state, chutney_creators *creators)
     state->buf_len = 0;
     state->buf_alloc = 0;
     state->buf = NULL;
+    state->completion = NULL;
     return 0;
 }
 
@@ -113,6 +116,15 @@ mark_pop(chutney_load_state *state)
 }
 
 static enum chutney_status
+buf_dupe(chutney_load_state *state, char **copy)
+{
+    if ((*copy = malloc(state->buf_len + 1)) == NULL)
+        return CHUTNEY_NOMEM;
+    memcpy(*copy, state->buf, state->buf_len + 1);
+    return CHUTNEY_OKAY;
+}
+
+static enum chutney_status
 stack_pop_mark(chutney_load_state *state, void ***items, long *count)
 {
     long mark;
@@ -162,6 +174,7 @@ static void
 state_buf_nl(chutney_load_state *state, 
              int (*completion)(chutney_load_state *state))
 {
+    assert(state->completion == NULL);
     state->parser_state = CHUTNEY_S_BUF_NL;
     state->completion = completion;
 }
@@ -170,6 +183,7 @@ static void
 state_buf_count(chutney_load_state *state, int count, 
                 int (*completion)(chutney_load_state *state))
 {
+    assert(state->completion == NULL);
     state->parser_state = CHUTNEY_S_BUF_CNT;
     state->buf_want = count;
     state->completion = completion;
@@ -308,6 +322,32 @@ s_binunicode(struct chutney_load_state *state)
     return CHUTNEY_OKAY;
 }
 
+/* Load second argument of GLOBAL opcode, construct "global" object */
+static enum chutney_status
+load_global(struct chutney_load_state *state)
+{
+    void *obj;
+    chutney_op_global *global = &state->op_state.global;
+
+    if (buf_dupe(state, &state->op_state.global.name) < 0)
+        return CHUTNEY_NOMEM;
+    obj = state->creators.get_global(global->module, global->name);
+    free(global->name);
+    free(global->module);
+    return stack_push(state, obj);
+}
+
+/* Load first argument of GLOBAL opcode */
+static enum chutney_status
+s_global_module(struct chutney_load_state *state)
+{
+    if (buf_dupe(state, &state->op_state.global.module) < 0)
+        return CHUTNEY_NOMEM;
+    state_buf_nl(state, load_global);
+    return CHUTNEY_OKAY;
+}
+
+
 enum chutney_status 
 chutney_load(chutney_load_state *state, const char **datap, int *len)
 {
@@ -371,6 +411,7 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
                 err = dict_setitems(state);
                 break;
             case GLOBAL:
+                state_buf_nl(state, s_global_module);
                 break;
             default:
                 return CHUTNEY_OPCODE_ERR;

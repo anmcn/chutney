@@ -21,6 +21,9 @@ class BasicSuite(unittest.TestSuite):
         unittest.TestSuite.__init__(self, map(BasicTests, self.tests))
 
 
+class TestInstance: pass
+
+
 class DumpTests(unittest.TestCase):
     def test_unpickleable(self):
         self.assertRaises(chutney.UnpickleableError, chutney.dumps, min)
@@ -93,6 +96,13 @@ class DumpTests(unittest.TestCase):
         self.assertEqual(chutney.dumps({}), '}.')
         self.assertEqual(chutney.dumps({None: None}), '}(NNu.')
 
+    def test_inst(self):
+        inst = TestInstance()
+        self.assertEqual(chutney.dumps(inst), '(c__main__\nTestInstance\no}b.')
+        inst.attr = 'abc'
+        self.assertEqual(chutney.dumps(inst),
+                         '(c__main__\nTestInstance\no}(U\x04attrU\x03abcub.')
+
 
 class DumpSuite(unittest.TestSuite):
     tests = [
@@ -106,6 +116,7 @@ class DumpSuite(unittest.TestSuite):
         'test_tuple',
         'test_list',
         'test_dict',
+        'test_inst',
     ]
     def __init__(self):
         unittest.TestSuite.__init__(self, map(DumpTests, self.tests))
@@ -177,6 +188,13 @@ class LoadTests(unittest.TestCase):
         self.assertRaises(chutney.UnpicklingError, chutney.loads, '(NNu.')
         # SETITEMS on a tuple, rather than a dict
         self.assertRaises(TypeError, chutney.loads, '(t(NNu.')
+
+    def test_inst(self):
+#       XXX Need to improve the error reporting from the callbacks
+#        self.assertEqual(chutney.loads('c\n\n.'), 
+#                         TestInstance)
+        self.assertEqual(chutney.loads('c__main__\nTestInstance\n.'), 
+                         TestInstance)
  
 
 class LoadSuite(unittest.TestSuite):
@@ -191,6 +209,7 @@ class LoadSuite(unittest.TestSuite):
         'test_unicode',
         'test_tuple',
         'test_dict',
+        'test_inst',
     ]
     def __init__(self):
         unittest.TestSuite.__init__(self, map(LoadTests, self.tests))
@@ -207,15 +226,4 @@ class ChutneySuite(unittest.TestSuite):
 suite = ChutneySuite
 
 if __name__ == '__main__':
-    if hasattr(sys, 'gettotalrefcount'):
-        import gc
-        runner = unittest.TextTestRunner()
-        suite = ChutneySuite()
-        counts = [None] * 5
-        for i in xrange(len(counts)):
-            runner.run(suite)
-            gc.collect()
-            counts[i] = sys.gettotalrefcount()
-        print counts
-    else:
-        unittest.main()
+    unittest.main(defaultTest='suite')

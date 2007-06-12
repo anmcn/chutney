@@ -36,6 +36,11 @@ enum chutney_status {
     CHUTNEY_NOMARK_ERR = -5,
 };
 
+typedef struct {
+    char *module;
+    char *name;
+} chutney_op_global;
+
 typedef struct chutney_load_state {
     chutney_creators creators;
     enum chutney_states parser_state;
@@ -52,6 +57,9 @@ typedef struct chutney_load_state {
     enum chutney_status (*completion)(struct chutney_load_state *state);
                                 // Some states call this on completion of their
                                 // action.
+    union {
+        chutney_op_global global;
+    } op_state;                 // Opcode specific state
 } chutney_load_state;
 typedef enum chutney_status (*completion_fn)(struct chutney_load_state *);
 
