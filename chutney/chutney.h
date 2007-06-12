@@ -34,6 +34,7 @@ enum chutney_status {
     CHUTNEY_STACK_ERR = -3,
     CHUTNEY_OPCODE_ERR = -4,
     CHUTNEY_NOMARK_ERR = -5,
+    CHUTNEY_CALLBACK_ERR = -6,
 };
 
 typedef struct {

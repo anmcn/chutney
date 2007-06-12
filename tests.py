@@ -191,8 +191,8 @@ class LoadTests(unittest.TestCase):
 
     def test_inst(self):
 #       XXX Need to improve the error reporting from the callbacks
-#        self.assertEqual(chutney.loads('c\n\n.'), 
-#                         TestInstance)
+        self.assertRaises(NameError, chutney.loads, 'c\nTestInstance\n.') 
+        self.assertRaises(AttributeError, chutney.loads, 'c__main__\n\n.') 
         self.assertEqual(chutney.loads('c__main__\nTestInstance\n.'), 
                          TestInstance)
  

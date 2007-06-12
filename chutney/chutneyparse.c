@@ -80,7 +80,7 @@ static enum chutney_status
 stack_push(chutney_load_state *state, void *obj)
 {
     if (obj == NULL)
-        return CHUTNEY_NOMEM;
+        return CHUTNEY_CALLBACK_ERR;
     if (state->stack_size == state->stack_alloc)
         if (stack_grow(state) < 0)
             return CHUTNEY_NOMEM;
@@ -258,7 +258,7 @@ load_tuple(chutney_load_state *state, void **objp)
     if (err != CHUTNEY_OKAY)
         return err;
     *objp = state->callbacks.make_tuple(values, count);
-    return *objp ? CHUTNEY_OKAY : CHUTNEY_NOMEM;
+    return *objp ? CHUTNEY_OKAY : CHUTNEY_CALLBACK_ERR;
 }
 
 static enum chutney_status
@@ -280,7 +280,7 @@ dict_setitems(chutney_load_state *state)
     }
     dict = state->stack[state->stack_size - 1];
     if (state->callbacks.dict_setitems(dict, values, count) < 0)
-        return CHUTNEY_NOMEM;
+        return CHUTNEY_CALLBACK_ERR;
     else
         return CHUTNEY_OKAY;
 }

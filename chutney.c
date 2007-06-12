@@ -106,8 +106,11 @@ get_global(const char *module_name, const char *global_name)
 
     if ((module = PySys_GetObject("modules")) == NULL)
         return NULL;
-    if ((module = PyDict_GetItemString(module, module_name)) == NULL)
+    if ((module = PyDict_GetItemString(module, module_name)) == NULL) {
+        PyErr_Format(PyExc_NameError, "module '%.200s' is not in sys.modules",
+                     module_name);
         return NULL;
+    }
     if ((global = PyObject_GetAttrString(module, global_name)) == NULL)
         return NULL;
     return global;
@@ -160,7 +163,8 @@ chutney_loads(PyObject *self, PyObject *args)
         }
         /* fallthru */
     default:
-	PyErr_SetString(UnpicklingError, "parse error");
+        if (!PyErr_Occurred())
+            PyErr_SetString(UnpicklingError, "parse error");
         break;
     }
     chutney_load_dealloc(&state);
