@@ -24,7 +24,8 @@ unpickling instances - they must already be in sys.modules.
 The protocol used is a subset of pickle protocol 1. The parser probably
 will not parse Python generated pickles except in simple cases, but
 the Python pickle/cPickle modules should parse the pickles we generate
-(and it should be possible to use pickletools).
+(and it should be possible to use pickletools.dis on generated chutneys
+for debugging purposes).
 
 Note also that we send python lists as tuples to keep things simple.
 
@@ -97,10 +98,10 @@ Loading a "chutney"
 -------------------
 
 To load a chutney, allocate a chutney_load_state structure, then
-initialise it with chutney_load_init, passing a chutney_creators
-structure.  The chutney_creators structure contains pointers to functions
-the chutney parser can call to allocate objects of various kinds (and
-deallocate them).
+initialise it with chutney_load_init, passing a chutney_load_callbacks
+structure.  The chutney_load_callbacks structure contains pointers
+to functions the chutney parser can call to allocate, deallocate and
+manipulate application objects.
 
 As data becomes available, the chutney_load method should then be
 called. This returns a chutney_status enum indicating the phase of the
@@ -119,8 +120,7 @@ state machine:
 
     CHUTNEY_NOMEM
 
-        Either creator object allocation has failed, or a memory
-        allocation has failed.
+        A memory allocation has failed.
 
     CHUTNEY_PARSE_ERR
     CHUTNEY_STACK_ERR
@@ -129,11 +129,15 @@ state machine:
 
         Flags errors in the structure of the pickle being parsed.
 
-The parser will call the creators as it finds objects in the data
-stream. The creators should return a pointer to an opaque object. Once
+    CHUTNEY_CALLBACK_ERR
+
+        A callback has flagged an error.
+
+The parser will call the callbacks as it finds objects in the data
+stream. The callbacks should return a pointer to an opaque object. Once
 returned, the parser assumes responsibility for the allocation, and will
-ultimately either call the creator "dealloc" method with the pointer, pass
-it to one of the collection creator methods (make_tuple, dict_setitems),
+ultimately either call the "dealloc" callback with the pointer, pass it to
+one of the collection manipulation callbacks (make_tuple, dict_setitems),
 or return it as the load result from chutney_load_result(). In all these
 cases, when the object is passed back, the user is again responsible
 for deallocating the storage (or adjusting reference counts, etc),
