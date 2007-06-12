@@ -113,7 +113,7 @@ get_global(const char *module_name, const char *global_name)
     return global;
 }
 
-static chutney_creators creators = {
+static chutney_load_callbacks load_callbacks = {
     creator_dealloc,    /* dealloc */       
     creator_null,       /* null */
     creator_bool,       /* bool */
@@ -139,7 +139,7 @@ chutney_loads(PyObject *self, PyObject *args)
         return NULL;
     if (PyString_AsStringAndSize(obj, (char **)&data, &len) < 0)
         return NULL;
-    if (chutney_load_init(&state, &creators) < 0) {
+    if (chutney_load_init(&state, &load_callbacks) < 0) {
         PyErr_NoMemory();
         return NULL;
     }

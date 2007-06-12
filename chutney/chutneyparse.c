@@ -11,10 +11,10 @@
     ((S)->stack_size ? (S)->stack[--((S)->stack_size)] : (void *)0)
 
 int
-chutney_load_init(chutney_load_state *state, chutney_creators *creators)
+chutney_load_init(chutney_load_state *state, chutney_load_callbacks *callbacks)
 {
     state->parser_state = CHUTNEY_S_OPCODE;
-    state->creators = *creators;
+    state->callbacks = *callbacks;
     state->stack_size = 0;
     state->stack_alloc = 256;
     if (!(state->stack = malloc(state->stack_alloc * sizeof(void *))))
@@ -35,7 +35,7 @@ chutney_load_dealloc(chutney_load_state *state)
     void *obj;
 
     while ((obj = STACK_POP(state)))
-        state->creators.dealloc(obj);
+        state->callbacks.dealloc(obj);
     free(state->stack);
     state->stack = NULL;
     free(state->marks);
@@ -51,7 +51,7 @@ stack_dealloc(chutney_load_state *state, void **values, long count)
     long i;
 
     for (i = 0; i < count; ++i)
-        state->creators.dealloc(values[i]);
+        state->callbacks.dealloc(values[i]);
 }
 
 static int stack_grow(chutney_load_state *state)
@@ -199,7 +199,7 @@ load_int(chutney_load_state *state)
     l = strtol(state->buf, &end, 0);
     if (errno || *end != '\0')
         return CHUTNEY_PARSE_ERR;
-    return stack_push(state, state->creators.make_int(l));
+    return stack_push(state, state->callbacks.make_int(l));
 }
 
 static long
@@ -220,7 +220,7 @@ parse_binint(chutney_load_state *state)
 static enum chutney_status
 load_binint(chutney_load_state *state)
 {
-    return stack_push(state, state->creators.make_int(parse_binint(state)));
+    return stack_push(state, state->callbacks.make_int(parse_binint(state)));
 }
 
 static enum chutney_status
@@ -244,7 +244,7 @@ load_binfloat(chutney_load_state *state)
     default:
         return CHUTNEY_PARSE_ERR;
     }
-    return stack_push(state, state->creators.make_float(l));
+    return stack_push(state, state->callbacks.make_float(l));
 }
 
 static enum chutney_status
@@ -257,7 +257,7 @@ load_tuple(chutney_load_state *state, void **objp)
     err = stack_pop_mark(state, &values, &count);
     if (err != CHUTNEY_OKAY)
         return err;
-    *objp = state->creators.make_tuple(values, count);
+    *objp = state->callbacks.make_tuple(values, count);
     return *objp ? CHUTNEY_OKAY : CHUTNEY_NOMEM;
 }
 
@@ -279,7 +279,7 @@ dict_setitems(chutney_load_state *state)
         return CHUTNEY_PARSE_ERR;
     }
     dict = state->stack[state->stack_size - 1];
-    if (state->creators.dict_setitems(dict, values, count) < 0)
+    if (state->callbacks.dict_setitems(dict, values, count) < 0)
         return CHUTNEY_NOMEM;
     else
         return CHUTNEY_OKAY;
@@ -288,7 +288,7 @@ dict_setitems(chutney_load_state *state)
 static enum chutney_status
 load_binstring(struct chutney_load_state *state)
 {
-    return stack_push(state, state->creators.make_string(state->buf, 
+    return stack_push(state, state->callbacks.make_string(state->buf, 
                                                          state->buf_len));
 }
 
@@ -299,7 +299,7 @@ s_binstring(struct chutney_load_state *state)
     int want = parse_binint(state);
 
     if (!want)
-        return stack_push(state, state->creators.make_string("", 0));
+        return stack_push(state, state->callbacks.make_string("", 0));
     state_buf_count(state, want, load_binstring);
     return CHUTNEY_OKAY;
 }
@@ -307,7 +307,7 @@ s_binstring(struct chutney_load_state *state)
 static enum chutney_status
 load_binunicode(struct chutney_load_state *state)
 {
-    return stack_push(state, state->creators.make_unicode(state->buf, 
+    return stack_push(state, state->callbacks.make_unicode(state->buf, 
                                                           state->buf_len));
 }
 
@@ -317,7 +317,7 @@ s_binunicode(struct chutney_load_state *state)
     int want = parse_binint(state);
 
     if (!want)
-        return stack_push(state, state->creators.make_unicode("", 0));
+        return stack_push(state, state->callbacks.make_unicode("", 0));
     state_buf_count(state, want, load_binunicode);
     return CHUTNEY_OKAY;
 }
@@ -331,7 +331,7 @@ load_global(struct chutney_load_state *state)
 
     if (buf_dupe(state, &state->op_state.global.name) < 0)
         return CHUTNEY_NOMEM;
-    obj = state->creators.get_global(global->module, global->name);
+    obj = state->callbacks.get_global(global->module, global->name);
     free(global->name);
     free(global->module);
     return stack_push(state, obj);
@@ -370,11 +370,11 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
                     return CHUTNEY_NOMEM;
                 break;
             case NONE:
-                err = stack_push(state, state->creators.make_null());
+                err = stack_push(state, state->callbacks.make_null());
                 break;
             case NEWTRUE:
             case NEWFALSE:
-                obj = state->creators.make_bool(c == NEWTRUE);
+                obj = state->callbacks.make_bool(c == NEWTRUE);
                 err = stack_push(state, obj);
                 break;
             case INT:
@@ -404,7 +404,7 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
                     err = stack_push(state, obj);
                 break;
             case EMPTY_DICT:
-                obj = state->creators.make_empty_dict();
+                obj = state->callbacks.make_empty_dict();
                 err = stack_push(state, obj);
                 break;
             case SETITEMS:

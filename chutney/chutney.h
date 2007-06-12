@@ -17,7 +17,7 @@ typedef struct {
     void *(*make_empty_dict)(void);
     int (*dict_setitems)(void *dict, void **values, long count);
     void *(*get_global)(const char *module, const char *name);
-} chutney_creators;
+} chutney_load_callbacks;
 
 enum chutney_states {
    CHUTNEY_S_OPCODE,            // Looking for an opcode
@@ -42,7 +42,7 @@ typedef struct {
 } chutney_op_global;
 
 typedef struct chutney_load_state {
-    chutney_creators creators;
+    chutney_load_callbacks callbacks;
     enum chutney_states parser_state;
     void **stack;
     int stack_alloc;
@@ -71,7 +71,7 @@ typedef struct {
 
 /* Load function */
 extern int chutney_load_init(chutney_load_state *state,
-                             chutney_creators *creators); 
+                             chutney_load_callbacks *callbacks); 
 extern void chutney_load_dealloc(chutney_load_state *state); 
 extern enum chutney_status chutney_load(chutney_load_state *state, 
                                         const char **data, int *length);
