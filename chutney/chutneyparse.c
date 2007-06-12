@@ -128,15 +128,6 @@ mark_pop(chutney_load_state *state)
 }
 
 static enum chutney_status
-buf_dupe(chutney_load_state *state, char **copy)
-{
-    if ((*copy = malloc(state->buf_len + 1)) == NULL)
-        return CHUTNEY_NOMEM;
-    memcpy(*copy, state->buf, state->buf_len + 1);
-    return CHUTNEY_OKAY;
-}
-
-static enum chutney_status
 stack_pop_mark(chutney_load_state *state, void ***items, long *count)
 {
     long mark;
@@ -182,6 +173,23 @@ buf_putc(chutney_load_state *state, char c)
     return 0;
 }
 
+/*
+ * Return a malloc'ed copy of the current buffer. The storage pointed to by
+ * *copy must be free()'ed.
+ */
+static enum chutney_status
+buf_dupe(chutney_load_state *state, char **copy)
+{
+    if ((*copy = malloc(state->buf_len + 1)) == NULL)
+        return CHUTNEY_NOMEM;
+    memcpy(*copy, state->buf, state->buf_len + 1);
+    return CHUTNEY_OKAY;
+}
+
+/*
+ * Set up the state machine to read bytes into buf up to the next \n, and then
+ * call the given /completion/ function.
+ */
 static void
 state_buf_nl(chutney_load_state *state, 
              int (*completion)(chutney_load_state *state))
@@ -191,6 +199,10 @@ state_buf_nl(chutney_load_state *state,
     state->completion = completion;
 }
 
+/*
+ * Set up the state machine read /count/ bytes into buf, and then call the
+ * given /completion/ function.
+ */
 static void
 state_buf_count(chutney_load_state *state, int count, 
                 int (*completion)(chutney_load_state *state))
@@ -430,7 +442,7 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
             }
             break;
 
-        /* collect bytes until newline */
+        /* collect bytes until newline, then call /completion/ */
         case CHUTNEY_S_BUF_NL:
             if (c != '\n')
                 buf_putc(state, c);
@@ -444,7 +456,7 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
             }
             break;
 
-        /* collect want_buf bytes */
+        /* collect want_buf bytes, then call /completion/ */
         case CHUTNEY_S_BUF_CNT:
             buf_putc(state, c);
             if (state->buf_len == state->buf_want) {

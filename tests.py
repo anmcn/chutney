@@ -22,6 +22,14 @@ class BasicSuite(unittest.TestSuite):
 
 
 class TestInstance: pass
+class TestInstanceGetState:
+    def __getstate__(self):
+        return {}
+class TestObject(object): pass
+class TestObjectSlotted(object): 
+    __slots__ = ('abc',)
+class TestObjectSlottedAndDict(object): 
+    __slots__ = ('abc','__dict__')
 
 
 class DumpTests(unittest.TestCase):
@@ -97,11 +105,25 @@ class DumpTests(unittest.TestCase):
         self.assertEqual(chutney.dumps({None: None}), '}(NNu.')
 
     def test_inst(self):
+        # Old style instances
         inst = TestInstance()
         self.assertEqual(chutney.dumps(inst), '(c__main__\nTestInstance\no}b.')
         inst.attr = 'abc'
         self.assertEqual(chutney.dumps(inst),
                          '(c__main__\nTestInstance\no}(U\x04attrU\x03abcub.')
+        self.assertRaises(chutney.UnpickleableError, 
+                          chutney.dumps, TestInstanceGetState())
+        # New style instances
+        obj = TestObject()
+        self.assertEqual(chutney.dumps(obj), '(c__main__\nTestObject\no}b.')
+        # New style slotted instances - not supported
+        obj = TestObjectSlotted()
+        self.assertRaises(chutney.UnpickleableError, 
+                          chutney.dumps, obj)
+        # New style slotted instances with dict - not supported
+        obj = TestObjectSlottedAndDict()
+        self.assertRaises(chutney.UnpickleableError, 
+                          chutney.dumps, obj)
 
 
 class DumpSuite(unittest.TestSuite):

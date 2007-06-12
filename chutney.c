@@ -195,9 +195,14 @@ save_inst(chutney_dump_state *self, PyObject *obj)
 
     if ((class = PyObject_GetAttrString(obj, "__class__")) == NULL)
         goto finally;
-    if ((instance_dict = PyObject_GetAttrString(obj, "__dict__")) == NULL)
+    if (obj->ob_type->ob_size != 0) {
+        PyErr_SetObject(UnpickleableError, obj);
         goto finally;
-
+    }
+    if ((instance_dict = PyObject_GetAttrString(obj, "__dict__")) == NULL) {
+        PyErr_SetObject(UnpickleableError, obj);
+        goto finally;
+    }
     if ((global_name = PyObject_GetAttrString(class, "__name__")) == NULL)
         goto finally;
     if ((name_str = PyString_AsString(global_name)) == NULL)
@@ -206,7 +211,11 @@ save_inst(chutney_dump_state *self, PyObject *obj)
         goto finally;
     if ((module_str = PyString_AsString(module_name)) == NULL)
         goto finally;
-
+    if (PyObject_HasAttrString(obj, "__getstate__")) {
+        PyErr_Format(UnpickleableError, "__getstate__ method on %.200s.%.200s "
+                     "not supported by chutney", module_str, name_str);
+        goto finally;
+    }
     if (chutney_save_mark(self) < 0)
         goto finally;
     if (chutney_save_global(self, module_str, name_str) < 0)
@@ -378,7 +387,9 @@ save(chutney_dump_state *self, PyObject *obj)
         break;
 
     }
-    PyErr_SetObject(UnpickleableError, obj);
+    /* Object not handled in switch: either a new-style instance, or a type we
+     * can't handle */
+    res = save_inst(self, obj);
 
 finally:
     self->depth--;
