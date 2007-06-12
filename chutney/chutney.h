@@ -16,6 +16,7 @@ typedef struct {
     void *(*make_tuple)(void **values, long count);
     void *(*make_empty_dict)(void);
     int (*dict_setitems)(void *dict, void **values, long count);
+
     void *(*get_global)(const char *module, const char *name);
 } chutney_load_callbacks;
 

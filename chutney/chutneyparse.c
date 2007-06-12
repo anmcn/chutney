@@ -13,6 +13,18 @@
 int
 chutney_load_init(chutney_load_state *state, chutney_load_callbacks *callbacks)
 {
+    assert(callbacks->dealloc != NULL);
+    assert(callbacks->make_null != NULL);
+    assert(callbacks->make_bool != NULL);
+    assert(callbacks->make_int != NULL);
+    assert(callbacks->make_float != NULL);
+    assert(callbacks->make_string != NULL);
+    assert(callbacks->make_unicode != NULL);
+    assert(callbacks->make_tuple != NULL);
+    assert(callbacks->make_empty_dict != NULL);
+    assert(callbacks->dict_setitems != NULL);
+    assert(callbacks->get_global != NULL);
+
     state->parser_state = CHUTNEY_S_OPCODE;
     state->callbacks = *callbacks;
     state->stack_size = 0;
