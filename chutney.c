@@ -116,6 +116,67 @@ get_global(const char *module_name, const char *global_name)
     return global;
 }
 
+static void *
+creator_object(void *clsraw)
+{
+    PyObject *cls = (PyObject *)clsraw;
+    PyObject *obj = NULL, *args;
+
+    if (cls == NULL)
+        goto finally;
+    if (PyType_Check(cls) && ((PyTypeObject *)cls)->tp_new != NULL) {
+        if ((args = PyTuple_New(0)) == NULL)
+            goto finally;
+        obj = ((PyTypeObject *)cls)->tp_new((PyTypeObject *)cls, args, NULL);
+        Py_DECREF(args);
+    } else if (PyClass_Check(cls)) {
+        obj = PyInstance_NewRaw(cls, NULL);
+    } else {
+        PyObject *repr = PyObject_Repr((PyObject *)cls);
+        PyErr_Format(UnpicklingError, "%.200s is not a type or class object",
+                     repr ? PyString_AsString(repr) : "???");
+        Py_XDECREF(repr);
+        goto finally;
+    }
+finally:
+    Py_XDECREF(cls);
+    return (void *)obj;
+}
+
+static int
+object_build(void *objraw, void *stateraw)
+{
+    PyObject *obj = (PyObject *)objraw;
+    PyObject *state = (PyObject *)stateraw;
+    PyObject *dict = NULL, *key, *value;
+    int res = -1;
+    int i;
+
+    if (!PyDict_Check(state)) {
+        PyErr_SetString(UnpicklingError, "state is not a dictionary");
+        goto finally;
+    }
+    if (PyObject_HasAttrString(obj, "__setstate__")) {
+        PyErr_SetString(UnpicklingError, 
+                        "__setstate__ not supported by chutney");
+        goto finally;
+    }
+    if ((dict = PyObject_GetAttrString(obj, "__dict__")) == NULL)
+        goto finally;
+    i = 0;
+    while (PyDict_Next(state, &i, &key, &value))
+        if (PyObject_SetItem(dict, key, value) < 0)
+            goto finally;
+    res = 0;
+finally:
+    Py_XDECREF(dict);
+    Py_DECREF(state);
+    if (res < 0) {
+        Py_DECREF(obj);
+    }
+    return res;
+}
+
 static chutney_load_callbacks load_callbacks = {
     creator_dealloc,    /* dealloc */       
     creator_null,       /* null */
@@ -128,6 +189,8 @@ static chutney_load_callbacks load_callbacks = {
     creator_empty_dict, /* dict */
     dict_setitems,      /* setitems */
     get_global,         /* get global reference */
+    creator_object,     /* instance */
+    object_build,       /* update instance attrs */
 };
 
 static PyObject *

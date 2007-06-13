@@ -105,7 +105,6 @@ class DumpTests(unittest.TestCase):
         self.assertEqual(chutney.dumps({None: None}), '}(NNu.')
 
     def test_inst(self):
-        # Old style instances
         inst = TestInstance()
         self.assertEqual(chutney.dumps(inst), '(c__main__\nTestInstance\no}b.')
         inst.attr = 'abc'
@@ -113,7 +112,8 @@ class DumpTests(unittest.TestCase):
                          '(c__main__\nTestInstance\no}(U\x04attrU\x03abcub.')
         self.assertRaises(chutney.UnpickleableError, 
                           chutney.dumps, TestInstanceGetState())
-        # New style instances
+
+    def test_obj(self):
         obj = TestObject()
         self.assertEqual(chutney.dumps(obj), '(c__main__\nTestObject\no}b.')
         # New style slotted instances - not supported
@@ -139,6 +139,7 @@ class DumpSuite(unittest.TestSuite):
         'test_list',
         'test_dict',
         'test_inst',
+        'test_obj',
     ]
     def __init__(self):
         unittest.TestSuite.__init__(self, map(DumpTests, self.tests))
@@ -212,11 +213,38 @@ class LoadTests(unittest.TestCase):
         self.assertRaises(TypeError, chutney.loads, '(t(NNu.')
 
     def test_inst(self):
-#       XXX Need to improve the error reporting from the callbacks
+        # Error handling
         self.assertRaises(NameError, chutney.loads, 'c\nTestInstance\n.') 
         self.assertRaises(AttributeError, chutney.loads, 'c__main__\n\n.') 
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, 
+                          '(csys\npath\no.')
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, 
+                          '(c__main__\nTestInstance\noNb.')
+        # Old-style class
         self.assertEqual(chutney.loads('c__main__\nTestInstance\n.'), 
                          TestInstance)
+        o = chutney.loads('(c__main__\nTestInstance\no.')
+        self.failUnless(isinstance(o, TestInstance))
+        self.assertEqual(o.__dict__, {})
+        o = chutney.loads('(c__main__\nTestInstance\no}b.')
+        self.failUnless(isinstance(o, TestInstance))
+        self.assertEqual(o.__dict__, {})
+        o = chutney.loads('(c__main__\nTestInstance\no}(U\x04attrU\x03abcub.')
+        self.failUnless(isinstance(o, TestInstance))
+        self.assertEqual(o.__dict__, dict(attr='abc'))
+ 
+    def test_obj(self):
+        self.assertEqual(chutney.loads('c__main__\nTestObject\n.'), 
+                         TestObject)
+        o = chutney.loads('(c__main__\nTestObject\no.')
+        self.failUnless(isinstance(o, TestObject))
+        self.assertEqual(o.__dict__, {})
+        o = chutney.loads('(c__main__\nTestObject\no}b.')
+        self.failUnless(isinstance(o, TestObject))
+        self.assertEqual(o.__dict__, {})
+        o = chutney.loads('(c__main__\nTestObject\no}(U\x04attrU\x03abcub.')
+        self.failUnless(isinstance(o, TestObject))
+        self.assertEqual(o.__dict__, dict(attr='abc'))
  
 
 class LoadSuite(unittest.TestSuite):
@@ -232,6 +260,7 @@ class LoadSuite(unittest.TestSuite):
         'test_tuple',
         'test_dict',
         'test_inst',
+        'test_obj',
     ]
     def __init__(self):
         unittest.TestSuite.__init__(self, map(LoadTests, self.tests))

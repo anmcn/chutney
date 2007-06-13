@@ -24,6 +24,8 @@ chutney_load_init(chutney_load_state *state, chutney_load_callbacks *callbacks)
     assert(callbacks->make_empty_dict != NULL);
     assert(callbacks->dict_setitems != NULL);
     assert(callbacks->get_global != NULL);
+    assert(callbacks->make_object != NULL);
+    assert(callbacks->object_build != NULL);
 
     state->parser_state = CHUTNEY_S_OPCODE;
     state->callbacks = *callbacks;
@@ -371,6 +373,36 @@ s_global_module(struct chutney_load_state *state)
     return CHUTNEY_OKAY;
 }
 
+static enum chutney_status
+load_object(chutney_load_state *state)
+{
+    void **values = NULL;
+    long count = 0;
+    static enum chutney_status err;
+
+    err = stack_pop_mark(state, &values, &count);
+    if (err != CHUTNEY_OKAY)
+        return err;
+    if (count != 1) {
+        stack_dealloc(state, values, count);
+        return CHUTNEY_PARSE_ERR;
+    }
+    return stack_push(state, state->callbacks.make_object(*values));
+}
+
+static enum chutney_status
+object_build(chutney_load_state *state)
+{
+    void *obj, *objstate;
+
+    if ((objstate = STACK_POP(state)) == NULL)
+        return CHUTNEY_STACK_ERR;
+    if ((obj = STACK_POP(state)) == NULL)
+        return CHUTNEY_STACK_ERR;
+    if (state->callbacks.object_build(obj, objstate) < 0)
+        return CHUTNEY_CALLBACK_ERR;
+    return stack_push(state, obj);
+}
 
 enum chutney_status 
 chutney_load(chutney_load_state *state, const char **datap, int *len)
@@ -436,6 +468,12 @@ chutney_load(chutney_load_state *state, const char **datap, int *len)
                 break;
             case GLOBAL:
                 state_buf_nl(state, s_global_module);
+                break;
+            case OBJ:
+                err = load_object(state);
+                break;
+            case BUILD:
+                err = object_build(state);
                 break;
             default:
                 return CHUTNEY_OPCODE_ERR;

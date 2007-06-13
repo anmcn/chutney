@@ -18,6 +18,8 @@ typedef struct {
     int (*dict_setitems)(void *dict, void **values, long count);
 
     void *(*get_global)(const char *module, const char *name);
+    void *(*make_object)(void *cls);
+    int (*object_build)(void *obj, void *state);
 } chutney_load_callbacks;
 
 enum chutney_states {
