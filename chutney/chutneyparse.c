@@ -397,10 +397,14 @@ object_build(chutney_load_state *state)
 
     if ((objstate = STACK_POP(state)) == NULL)
         return CHUTNEY_STACK_ERR;
-    if ((obj = STACK_POP(state)) == NULL)
+    if ((obj = STACK_POP(state)) == NULL) {
+        state->callbacks.dealloc(objstate);
         return CHUTNEY_STACK_ERR;
-    if (state->callbacks.object_build(obj, objstate) < 0)
+    }
+    if (state->callbacks.object_build(obj, objstate) < 0) {
+        state->callbacks.dealloc(obj);
         return CHUTNEY_CALLBACK_ERR;
+    }
     return stack_push(state, obj);
 }
 

@@ -171,9 +171,6 @@ object_build(void *objraw, void *stateraw)
 finally:
     Py_XDECREF(dict);
     Py_DECREF(state);
-    if (res < 0) {
-        Py_DECREF(obj);
-    }
     return res;
 }
 

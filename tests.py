@@ -212,15 +212,31 @@ class LoadTests(unittest.TestCase):
         # SETITEMS on a tuple, rather than a dict
         self.assertRaises(TypeError, chutney.loads, '(t(NNu.')
 
-    def test_inst(self):
-        # Error handling
+    def test_inst_err(self):
+        # Missing module and global name
+        self.assertRaises(EOFError, chutney.loads, 'c.') 
+        # Missing module name
         self.assertRaises(NameError, chutney.loads, 'c\nTestInstance\n.') 
+        # Missing global name
         self.assertRaises(AttributeError, chutney.loads, 'c__main__\n\n.') 
+        # global isn't a class
         self.assertRaises(chutney.UnpicklingError, chutney.loads, 
                           '(csys\npath\no.')
+        # inst dict is wrong type
         self.assertRaises(chutney.UnpicklingError, chutney.loads, 
                           '(c__main__\nTestInstance\noNb.')
-        # Old-style class
+        # BUILD with not enough objects on stack
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, 
+                          'b.')
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, 
+                          'Nb.')
+        # BUILD with no object
+        self.assertRaises(chutney.UnpicklingError, chutney.loads, 
+                          'NNb.')
+        self.assertRaises(AttributeError, chutney.loads, 
+                          'N}b.')
+
+    def test_inst(self):
         self.assertEqual(chutney.loads('c__main__\nTestInstance\n.'), 
                          TestInstance)
         o = chutney.loads('(c__main__\nTestInstance\no.')
@@ -259,6 +275,7 @@ class LoadSuite(unittest.TestSuite):
         'test_unicode',
         'test_tuple',
         'test_dict',
+        'test_inst_err',
         'test_inst',
         'test_obj',
     ]
