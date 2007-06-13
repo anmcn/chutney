@@ -1,56 +1,85 @@
 CHUTNEY
 =======
 
-A simple portable subset of the Python pickle protocol. What little
-documentation exists for the pickle protocol is in the Python
-pickletools.py module source as comments.
+Chutney is a portable C library implementing a subset of the Python "pickle"
+serialisation protocol, and a Python binding for the library.
 
-Chutney support serialising:
-    
+Chutney supports serialising the following types:
+
     None        (null)
     int
     float       (C double)
     str         (8 bit clean strings)
     utf-8       (UTF-8 encoded strings)
-    tuple
-    dict
+    tuple       (list)
+    dict        (map)
+    instance    (a named dictionary, essentially)
 
-Unlike Python's pickle, no memoising is performed (at this time).
-Consequently, reference cycles are not detected, and multiple references
-to the same structure will result in the structure being saved in it's
-entirety multiple times. Additionally, modules are NOT imported when
-unpickling instances - they must already be in sys.modules.
+The code implementing the chutney library is in the "chutney" subdirectory. A
+Python binding to the library, "chutney.c" is in the top level directory,
+as are Python-level unit tests (which exercise both the Python binding
+and the underlying library).
 
-The protocol used is a subset of pickle protocol 1. The parser probably
-will not parse Python generated pickles except in simple cases, but
-the Python pickle/cPickle modules should parse the pickles we generate
+The protocol used is a subset of pickle protocol 1 and 2. The parser
+probably will not parse Python generated pickles except in simple cases,
+but the Python pickle/cPickle modules should parse the pickles we generate
 (and it should be possible to use pickletools.dis on generated chutneys
 for debugging purposes).
 
-Note also that we send python lists as tuples to keep things simple.
 
-A Python binding to the library, "chutney.c" in the top level directory,
-is provided, as are Python-level unit tests (which exercise both the
-Python binding and the underlying library).
+Python chutney binding
+======================
+
+The Python binding for chutney currently presents only two methods -
+"dumps" and "loads", as well a base error class ChutneyError, and two
+specific error classes, UnpickleableError and UnpicklingError. The chutney
+Python API attempts to be similar to the pickle API, however there are
+some important differences:
+
+ * only the specific types mentioned above are supported - other objects
+   will generate an UnpickleableError.
+
+ * memoising is not supported (at this time).  Consequently, reference
+   cycles are not detected, and multiple references to the same structure
+   will result in the structure being saved in it's entirety multiple times.
+
+ * modules are NOT imported when unpickling instances - they must already
+   be in sys.modules.
+
+ * python lists are sent as tuples to keep things simple.
+
+ * when instantiating objects, the class __init__ is NOT called, and the
+   attribute dictionary is added directly to the instance __dict__.
+
+ * __getstate__, __setstate__, __reduce__, __reduce_ex__ and copy_reg are NOT
+   supported, nor are slotted classes. Only the instance __dict__ is saved.
+
+These changes were motivated either by the desire to keep the chutney library
+simple (no memoising, limited type support) or to make the unserialisation
+more secure when dealing with data from potentially untrusted sources
+(no implicit import, no __setstate__, __init__ or __setattr__).
 
 
 Chutney Library
----------------
+===============
+
+When reading the following API descriptions, chutney/chutney.h contains
+the public interface definitions, and should be read in conjunction with
+this documentation.  The source of the Python chutney binding should also
+be consulted as an example of using the library.
 
 The library lives in the "chutney" subdirectory. No defines or platform
-detection is required (the library detects the floating point format at
-run-time, however). "chutney.h" contains the public interface definitions,
-and it should be read in conjunction with this documentation.
+detection is required (the library detects the floating point format
+at run-time, however). No provision has been made to build a static or
+dynamic link library from the source as this process is highly platform
+and project specific.
 
-The chutney API reflects the pickle state machine - reading the pickle
-documentation (in the Python pickletools module source) will aid
-understanding. The pickle format resembles a simple stack-based virtual
-machine, with the last item on the stack forming the pickle value (so
-if you have more than one simple value to pass, they should be contained
-within a tuple or dict).
-
-When reading the following API descriptions, chutney/chutney.h should
-be referred to for specific details.
+The chutney API reflects the pickle state machine - reading the
+pickle documentation (in the Python pickletools module source) will
+aid understanding the chutney API. The pickle format resembles a simple
+stack-based virtual machine, with the last item on the stack forming the
+pickle value (so if you have more than one simple value to pass, they
+should be contained within a tuple, dict or instance).
 
 
 Generating a "chutney"
@@ -58,54 +87,57 @@ Generating a "chutney"
 
 Allocate a chutney_dump_state structure, then initialise it with
 chutney_dump_init, passing a write function and write context. The write
-function should accept the write context, a character pointer to the
-data to be written (which might contain nulls) and a byte count.
+function should accept the write context, a character pointer to the data
+to be written (which might contain nulls) and a count of data bytes.
 
-For simple objects (null, bool, int, float, string and utf8), simply
-call the appropriate chutney_save_??? method, passing the state object
-and value (if any). See the prototypes in chutney/chutney.h for details.
+For simple objects (null, bool, int, float, string and utf8), simply call
+the appropriate chutney_save_XXX method, passing the state object and value
+(where applicable). See the prototypes in chutney/chutney.h for details.
 
-To save a tuple:
-    chutney_save_mark()
-    save objects in the tuple
-    chutney_save_tuple()
+When dumping container objects, multiple API calls are required:
 
-To save a dictionary:
-    chutney_save_empty_dict()
-    chutney_save_mark()
-    save up to CHUTNEY_BATCHSIZE key and value objects in pairs
-    chutney_save_setitems
+    To save a tuple:
+        chutney_save_mark()
+        save objects in the tuple
+        chutney_save_tuple()
 
-If you have more than CHUTNEY_BATCHSIZE items to save, repeat the MARK,
-CHUTNEY_BATCHSIZE keys and values, SETITEMS as many times as is required.
+    To save a dictionary:
+        chutney_save_empty_dict()
+        chutney_save_mark()
+            save up to CHUTNEY_BATCHSIZE key and value objects in pairs
+            chutney_save_setitems
 
-To save an instance:
-    chutney_save_mark()
-    chutney_save_global() passing module name and class name
-    chutney_save_obj()
-    save instance dictionary
-    chutney_save_build()
+    If you have more than CHUTNEY_BATCHSIZE items to save, repeat the MARK,
+    CHUTNEY_BATCHSIZE keys and values, SETITEMS as many times as is required.
+
+    To save an instance:
+        chutney_save_mark()
+        chutney_save_global() passing module name and class name
+        chutney_save_obj()
+        save instance dictionary
+        chutney_save_build()
 
 When complete, chutney_save_stop() must be called. chutney_dump_dealloc()
-should then be called to release any storage referenced by the state
-object (but this does not deallocate the state object itself).
+should then be called to release any storage referenced by the state object
+(but this does not deallocate the state object itself).
 
-If any of the chutney_save_??? methods return < 0, an error has occurred,
+If any of the chutney_save_XXX methods return < 0, an error has occurred,
 and further method calls will have undefined results.
 
 
 Loading a "chutney"
 -------------------
 
-To load a chutney, allocate a chutney_load_state structure, then
-initialise it with chutney_load_init, passing a chutney_load_callbacks
-structure.  The chutney_load_callbacks structure contains pointers
-to functions the chutney parser can call to allocate, deallocate and
-manipulate application objects.
+To load a chutney, allocate a chutney_load_state structure, then initialise
+it with chutney_load_init, passing a chutney_load_callbacks structure.
+The chutney_load_callbacks structure contains pointers to functions the
+chutney parser can call to allocate, deallocate and manipulate application
+objects.
 
-As data becomes available, the chutney_load method should then be
-called. This returns a chutney_status enum indicating the phase of the
-state machine:
+As data becomes available, the "chutney_load" method should then be called.
+Note that chutney_load updates the passed data and length arguments to
+reflect the number of bytes consumed in parsing. "chutney_load" returns
+a chutney_status enum indicating the phase of the state machine:
 
     CHUTNEY_OKAY
 
@@ -134,16 +166,72 @@ state machine:
         A callback has flagged an error.
 
 The parser will call the callbacks as it finds objects in the data
-stream. The callbacks should return a pointer to an opaque object. Once
-returned, the parser assumes responsibility for the allocation, and will
-ultimately either call the "dealloc" callback with the pointer, pass it to
-one of the collection manipulation callbacks (make_tuple, dict_setitems),
-or return it as the load result from chutney_load_result(). In all these
-cases, when the object is passed back, the user is again responsible
-for deallocating the storage (or adjusting reference counts, etc),
-even if the container object cannot be created.
+stream. The make_XXX callbacks should return a pointer to an opaque object,
+other callbacks typically return 0 to indicate success or -1 to indicate
+failure.
 
-After successfully or unsuccessfully parsing a pickle,
-chutney_load_dealloc should be called to deallocate any storage referenced
-by chutney_load_state (note, however, that it does not deallocate the
-chutney_load_state structure).
+The parser assumes responsibility for the opaque objects returned from
+the make_XXX callbacks, and will ultimately either call the "dealloc"
+callback with the pointer, pass it to one of the collection manipulation
+callbacks (make_tuple, dict_setitems), or return it as the load result from
+chutney_load_result(). In all these cases, when the object is passed back,
+the user is again responsible for deallocating the storage (or adjusting
+reference counts, etc), even if the container object cannot be created.
+
+The callback methods closely reflect the saving methods, although there
+are a few differences for the sake of convenience:
+
+  * dealloc - called to deallocate an opaque application pointer representing
+    an object created by one of the allocating callbacks.
+
+  * make_null - called to allocate a NONE (null) object, no arguments
+    are passed.
+
+  * make_bool - called to allocate a boolean object, argument is a
+    C int (0 or 1).
+
+  * make_int - called to allocate an integer object, argument is a C int.
+
+  * make_float - called to allocate a floating point object, argument is
+    a C double.
+
+  * make_string - called to allocate a string object, arguments are a
+    const char pointer and a long count (strings are 8 bit clean, and can
+    contain \0).
+
+  * make_unicode - called to allocate a unicode object, arguments are a
+    UTF-8 encoded char pointer and a long count.
+
+  * make_tuple - called to allocate a tuple (or other ordered container),
+    arguments are a void * array, and a count of entries in the array.
+    The user assumes responsibility for all the objects in the array for
+    the purposes of garbage collection, etc.
+
+  * make_empty_dict - called to allocate an empty dictionary (or mapping),
+    no arguments are passed.
+
+  * dict_setitems - called to add items to a dictionary previously allocated
+    by make_empty_dict, arguments are the dict, a void * array of key and
+    value pairs to be added, and a count of keys and values (items * 2). The
+    user assumes responsibility for the keys and values (but not the dict).
+
+  * get_global - called to get a reference to a "global" object, arguments
+    are const char pointers to the module name, and the name of the global
+    object within that module. The parser does not care what this object
+    represents - the returned opaque value is typically passed to other
+    callbacks, such as make_object.
+
+  * make_object - called to allocate an object, argument is an opaque
+    pointer to a "global" object (typically the class).
+
+  * object_build - called to add attributes to an object previously
+    allocated via make_object, arguments are the object and a dictionary of
+    attributes. The user assumes responsibility for the passed dictionary,
+    but not the object.
+
+After successfully or unsuccessfully parsing a pickle, chutney_load_dealloc
+should be called to deallocate any storage referenced by chutney_load_state
+(note, however, that it does not deallocate the chutney_load_state
+structure itself).
+
+EOF
