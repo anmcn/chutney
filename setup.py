@@ -14,8 +14,8 @@ NAME = 'chutney'
 VERSION = '1.0.0'
 DESCRIPTION = 'A simple and safe pickle parser and generator'
 AUTHOR = 'Andrew McNamara', 'andrewm@object-craft.com.au'
-HOMEPAGE = 'http://www.object-craft.com.au/projects/chutney/'
-DOWNLOAD = 'http://www.object-craft.com.au/projects/chutney/download'
+HOMEPAGE = 'https://github.com/anmcn/chutney'
+DOWNLOAD = 'https://github.com/anmcn/chutney/releases'
 
 sources = [
     'chutney/chutneyparse.c',
